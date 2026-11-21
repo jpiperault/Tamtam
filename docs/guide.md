@@ -38,6 +38,8 @@ Si un bouton « Connecter » est grisé, l'application de ce réseau n'est pas e
 - L'aperçu à droite montre le post tel qu'il apparaîtra sur chaque réseau.
 - **Médias** : glissez des fichiers ou cliquez sur « Ajouter ». Les images sont converties en JPEG (2048 px au
   plus). Vidéos acceptées : MP4 et MOV. La **médiathèque** garde tout ce qui a été envoyé pour le projet.
+- **Lien à promouvoir** : facultatif et vide par défaut. Sans lien, le post ne contient que votre texte (et vos
+  médias). Le bouton « Ajouter l'adresse du projet » remplit le champ avec l'adresse saisie dans la page Projets.
 - **Campagne** : un mot court (par exemple `lancement-v2`) qui sert à regrouper les visites dans vos statistiques.
 - **Facebook : utiliser aussi le lien court suivi** (case sous le lien, visible quand un compte Facebook est choisi) :
   décochée par défaut, le post Facebook montre votre vrai lien. Cochez-la pour compter les clics Facebook dans Tamtam.

@@ -1,5 +1,10 @@
 # Journal
 
+## 1.1.1 — 21 novembre 2026
+
+- Rédaction : le **lien à promouvoir** n'est plus prérempli avec l'adresse du projet ; il est facultatif, et un
+  bouton « Ajouter l'adresse du projet » le remplit à la demande.
+
 ## 1.1.0 — 21 novembre 2026
 
 - **Rédiger avec Claude** dans « Nouveau post » : à partir d'une consigne, d'un ton et de la présentation du

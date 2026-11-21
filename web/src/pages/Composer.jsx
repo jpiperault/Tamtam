@@ -140,7 +140,7 @@ export default function Composer({ editId, copyId, date }) {
   const [media, setMedia] = useState([]);
   const [claude, setClaude] = useState(false);
   const [aiStatus, setAiStatus] = useState(null);
-  const [link, setLink] = useState(project.url || "");
+  const [link, setLink] = useState("");
   const [campaign, setCampaign] = useState("");
   const [fbShort, setFbShort] = useState(false);
   const [mode, setMode] = useState(date ? "at" : "now");
@@ -363,8 +363,12 @@ export default function Composer({ editId, copyId, date }) {
           </div>
 
           <div className="grid2">
-            <label className="field">Lien à promouvoir
+            <label className="field">Lien à promouvoir (facultatif)
               <input id="post-link" className="input" type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" />
+              {!link.trim() && project.url && (
+                <button type="button" className="btn ghost small" style={{ alignSelf: "flex-start" }} onClick={() => setLink(project.url)}>
+                  <Icon name="link" size={14} />Ajouter l'adresse du projet</button>
+              )}
             </label>
             <label className="field">Campagne (pour les statistiques)
               <input id="post-campaign" className="input" value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="lancement-v2" />
