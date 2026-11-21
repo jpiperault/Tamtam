@@ -196,6 +196,10 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .guide { max-width: 80ch; line-height: 1.65; }
 .guide h1 { font-size: 24px; margin: 0 0 12px; } .guide h2 { margin: 22px 0 8px; } .guide h3 { margin: 16px 0 6px; }
 .inline-code, .copybox code { font-family: var(--f-mono); font-size: 12.5px; background: var(--sunk); padding: 1px 6px; border-radius: 5px; }
+.md-table { overflow-x: auto; margin: 10px 0 14px; }
+.md-table table { border-collapse: collapse; font-size: 13.5px; line-height: 1.45; min-width: 100%; }
+.md-table th, .md-table td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+.md-table th { background: var(--sunk); font-weight: 700; }
 .copybox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .copybox code { word-break: break-all; padding: 6px 8px; }
 .login { min-height: 100%; display: grid; place-items: center; padding: 20px; }

@@ -4,11 +4,12 @@ import { useApp } from "../App.jsx";
 import { Chip, Dialog, Field, Icon, Loading, useLoad, useRun, useToast } from "../ui.jsx";
 
 const GUIDES = {
-  meta: ["Sur developers.facebook.com → Mes apps → Créer une app : nom et e-mail, puis cochez les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les messages et le contenu sur Instagram » (filtre « Gestion de contenu »).",
-    "Dans chaque cas d'utilisation (bouton « Personnaliser ») : ajoutez pages_manage_posts côté Page et, côté Instagram, choisissez la configuration « avec Facebook Login » et ajoutez instagram_content_publish.",
-    "Menu de gauche → Facebook Login for Business → Paramètres : collez l'adresse ci-dessous dans « URI de redirection OAuth valides » et enregistrez.",
-    "Paramètres de l'app → Général : copiez l'identifiant de l'app et la clé secrète (bouton « Afficher », Facebook redemande votre mot de passe).",
-    "Tant que l'app n'est pas validée par Meta (App Review), seules les personnes qui ont un rôle sur l'app (vous) peuvent connecter leurs comptes : cela suffit pour vos propres Pages."],
+  meta: ["Facebook : une Page (pas un profil). Instagram : un compte professionnel relié à cette Page.",
+    "developers.facebook.com → Mes apps → Créer une app, avec les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les messages et le contenu sur Instagram » (une app à part si votre app a déjà « Facebook Login »).",
+    "Personnaliser → Ajouter : pages_manage_posts et pages_read_engagement ; côté Instagram, configuration « API avec Facebook Login », puis instagram_basic et instagram_content_publish (pas les instagram_business_…).",
+    "Paramètres de l'app → Général : le domaine de Tamtam dans « Domaines de l'app » et « Ajouter une plateforme » → Site web avec l'adresse de Tamtam. Enregistrer.",
+    "Facebook Login for Business → Paramètres : collez l'adresse ci-dessous dans « URI de redirection OAuth valides », appuyez sur Entrée, puis Enregistrer.",
+    "Copiez ici l'identifiant de l'app et la clé secrète (Paramètres de l'app → Général). Guide détaillé et messages d'erreur : page Aide, « Configurer Meta »."],
   x: ["Créez un projet et une app sur developer.x.com.",
     "Dans « User authentication settings » : OAuth 2.0, type « Web App, Automated App or Bot », droits Read and write.",
     "Collez l'adresse de retour ci-dessous comme Callback URI, puis copiez le Client ID et le Client Secret OAuth 2.0.",

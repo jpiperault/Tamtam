@@ -50,9 +50,14 @@ nomme ; Hangar remet alors la version précédente.
 Elles se configurent **dans l'interface** : Administration → Applications des réseaux. La page donne, pour Meta, X et
 TikTok, les étapes et l'adresse de retour à copier. Points à prévoir :
 
-- **Meta** (Facebook + Instagram) : app créée avec les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les messages et le
-  contenu sur Instagram » (configuration avec Facebook Login). Tant que l'App Review n'est pas validée, seuls les
-  administrateurs / testeurs de l'app peuvent connecter leurs comptes (ce qui suffit pour vos propres Pages).
+- **Meta** (Facebook + Instagram) : marche à suivre complète, avec les messages d'erreur rencontrés et leur
+  solution, dans [docs/guide.md](docs/guide.md) → « Configurer Meta (Facebook et Instagram) pas à pas » (aussi dans
+  la page Aide). En bref : app à part avec les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les
+  messages et le contenu sur Instagram » (configuration avec Facebook Login), autorisations `pages_manage_posts`,
+  `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`, domaine + plateforme Site web, adresse
+  de retour dans Facebook Login for Business. Publication seulement sur une **Page** et un Instagram
+  **professionnel relié** à cette Page. Tant que l'App Review n'est pas validée, seules les personnes ayant un rôle
+  sur l'app peuvent connecter leurs comptes (ce qui suffit pour vos propres Pages).
 - **X** : l'écriture par API dépend de l'offre d'accès de votre compte développeur (payante ou limitée).
 - **TikTok** : sans audit, les posts sont publiés en privé. Pour les carrousels photo, vérifier le domaine
   `tamtam.piperault.fr` dans le portail TikTok (« URL properties »).

@@ -1,5 +1,16 @@
 # Journal
 
+## 1.0.2 — 21 novembre 2026
+
+- Aide : nouvelle section « Configurer Meta (Facebook et Instagram) pas à pas », écrite pendant la première vraie
+  connexion : forme des comptes (Page, Instagram professionnel relié), création de l'app, autorisations, domaine,
+  adresse de retour, et tableau des messages d'erreur de Facebook avec leur solution.
+- Administration : étapes Meta corrigées (plateforme Site web, Entrée dans le champ des adresses de retour,
+  autorisations exactes, app à part si l'app a déjà « Facebook Login »).
+- Aide : les tableaux s'affichent enfin comme des tableaux (ils apparaissaient en texte brut avec des `|`).
+- Retour de connexion : l'erreur renvoyée par le réseau est affichée même quand l'état de connexion manque, et la
+  raison d'un retour refusé est écrite dans les journaux.
+
 ## 1.0.1 — 21 novembre 2026
 
 - Correction : « Enregistrer » dans Administration → Applications des réseaux et l'enregistrement d'un post modifié

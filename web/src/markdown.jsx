@@ -1,6 +1,6 @@
 import React from "react";
 
-// Petit rendu Markdown (titres, listes, paragraphes, **gras**, `code`) sans HTML injecté.
+// Petit rendu Markdown (titres, listes, tableaux, paragraphes, **gras**, `code`) sans HTML injecté.
 function inline(text) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return parts.map((p, i) => {
@@ -14,6 +14,19 @@ export function renderMarkdown(md) {
   const blocks = [];
   let list = null;
   let para = [];
+  let table = null;
+  const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  const flushTable = () => {
+    if (table) {
+      const [head, ...rows] = table;
+      blocks.push(
+        <div className="md-table" key={blocks.length}><table>
+          <thead><tr>{head.map((c, i) => <th key={i}>{inline(c)}</th>)}</tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{inline(c)}</td>)}</tr>)}</tbody>
+        </table></div>);
+    }
+    table = null;
+  };
   const flushPara = () => { if (para.length) blocks.push(<p key={blocks.length}>{inline(para.join(" "))}</p>); para = []; };
   const flushList = () => {
     if (list) blocks.push(<ul key={blocks.length}>{list.map((it, i) => <li key={i}>{inline(it.text)}{it.sub.length > 0 && <ul>{it.sub.map((s, j) => <li key={j}>{inline(s)}</li>)}</ul>}</li>)}</ul>);
@@ -21,6 +34,14 @@ export function renderMarkdown(md) {
   };
   for (const raw of md.split("\n")) {
     const line = raw.replace(/\s+$/, "");
+    if (/^\|.*\|$/.test(line.trim())) {
+      flushPara(); flushList();
+      if (/^\|[\s|:-]+\|$/.test(line.trim())) continue;
+      table = table || [];
+      table.push(cells(line));
+      continue;
+    }
+    flushTable();
     if (!line.trim()) { flushPara(); flushList(); continue; }
     const h = line.match(/^(#{1,3})\s+(.*)$/);
     if (h) {
@@ -42,7 +63,7 @@ export function renderMarkdown(md) {
     flushList();
     para.push(line.trim());
   }
-  flushPara(); flushList();
+  flushPara(); flushList(); flushTable();
   return blocks;
 }
 

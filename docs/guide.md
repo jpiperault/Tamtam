@@ -77,6 +77,85 @@ Instagram), X et TikTok. La page Administration donne, pour chacune, les étapes
 copier dans le portail du réseau. Saisissez ensuite l'identifiant et le secret : ils sont chiffrés en base et ne
 réapparaissent jamais en clair. Laisser le champ secret vide garde le secret déjà enregistré.
 
+### Configurer Meta (Facebook et Instagram) pas à pas
+
+Une seule application Meta sert à Facebook et à Instagram. Comptez 15 minutes. Les noms des boutons sont ceux du
+site developers.facebook.com en novembre 2026 ; Meta les change parfois.
+
+**Avant de commencer : la forme des comptes à publier**
+
+- **Facebook : une Page, pas un profil.** Meta ne laisse publier par API que sur une Page Facebook, jamais sur un
+  profil personnel (même créé pour l'app). Si besoin : Facebook → menu → Pages → **Créer une Page**.
+- **Instagram : un compte professionnel relié à la Page.** Dans l'appli Instagram : Paramètres → Type de compte
+  et outils → **Passer à un compte professionnel** (Créateur ou Entreprise, gratuit). Puis, sur la Page Facebook :
+  Paramètres → **Comptes liés** → Instagram → Connecter le compte.
+- **Qui se connecte depuis Tamtam :** une personne administratrice de la Page **et** qui a un rôle sur l'app Meta
+  (tant que Meta n'a pas validé l'app). Le plus simple : votre compte Facebook personnel, ajouté comme
+  administrateur de la Page (Paramètres de la Page → Accès à la Page). Pour utiliser un compte Facebook dédié à la
+  place : dans l'app Meta, **Rôles de l'app** → l'ajouter comme Testeur, puis accepter l'invitation depuis ce compte.
+
+**1. Créer l'app Meta**
+
+Sur developers.facebook.com → **Mes apps** → **Créer une app** : nom et e-mail de contact, puis cochez les cas
+d'utilisation **« Gérer tout sur votre Page »** et **« Gérer les messages et le contenu sur Instagram »** (filtre
+« Gestion de contenu »). Pas besoin de portefeuille d'entreprise pour l'instant.
+
+Ces deux cas d'utilisation ne se combinent pas avec « Authentifier et demander des données avec Facebook Login ».
+Si votre app existante a celui-là (par exemple pour la connexion des joueurs d'un jeu) et que les deux cas sont
+grisés, créez une **app à part pour Tamtam**.
+
+**2. Ajouter les autorisations**
+
+Dans la liste des cas d'utilisation, bouton **Personnaliser** de chacun, puis **Ajouter** en face de :
+
+| Cas d'utilisation | Autorisations à ajouter |
+|---|---|
+| Gérer tout sur votre Page | `pages_manage_posts`, `pages_read_engagement` (`pages_show_list` et `business_management` y sont déjà) |
+| Gérer les messages et le contenu sur Instagram | choisir la configuration **« API avec Facebook Login »**, puis `instagram_basic`, `instagram_content_publish` |
+
+Attention aux noms voisins : `instagram_business_basic`, `instagram_business_content_publish`… servent à l'autre
+méthode (« Instagram Login »), que Tamtam n'utilise pas. Chaque autorisation ajoutée doit afficher **« Prête pour
+le test »**. Inutile d'ajouter les autres.
+
+**3. Déclarer l'adresse de Tamtam**
+
+- **Paramètres de l'app → Général** :
+  - **Domaines de l'app** : le domaine seul, par exemple `tamtam.piperault.fr` (sans `https://` ni `/`).
+  - Tout en bas : **Ajouter une plateforme** → **Site web**, URL du site `https://tamtam.piperault.fr/`.
+  - **Enregistrer les modifications** (barre en bas de l'écran).
+- **Facebook Login for Business → Paramètres** (menu de gauche) :
+  - **URI de redirection OAuth valides** : collez l'adresse de retour affichée dans Tamtam (Administration), par
+    exemple `https://tamtam.piperault.fr/api/v1/connect/meta/callback`, puis **appuyez sur Entrée** : l'adresse
+    doit devenir une pastille. Sans Entrée, elle n'est pas gardée.
+  - Laissez activés Connexion OAuth cliente, Connexion OAuth Web, Imposer le HTTPS et le mode strict.
+  - **Enregistrer les modifications**, puis contrôlez avec le **Validateur d'URI de redirection** en bas de page.
+
+**4. Saisir l'app dans Tamtam**
+
+Paramètres de l'app → Général : copiez l'**Identifiant de l'application** et la **Clé secrète** (bouton
+« Afficher », Facebook redemande votre mot de passe). Dans Tamtam → Administration → carte Meta : collez-les, puis
+**Enregistrer**. Vérifiez que l'identifiant est bien celui de l'app que vous venez de régler (si vous avez
+plusieurs apps Meta, c'est une erreur fréquente).
+
+**5. Connecter les comptes**
+
+Tamtam → **Comptes** → **Connecter Facebook** (ou Instagram, c'est la même connexion). Sur Facebook, cochez la
+Page et son compte Instagram, validez. De retour dans Tamtam, cochez les comptes à rattacher au projet.
+
+**Messages de Facebook et solution**
+
+| Message | Cause | Solution |
+|---|---|---|
+| « Impossible de charger cette URL : le domaine de cette URL n'est pas inscrit… » | Domaine ou adresse de retour non déclarés, ou identifiant d'une autre app dans Tamtam | Étapes 3 et 4 ; vérifier l'identifiant de l'app |
+| « Invalid Scopes: pages_manage_posts, instagram_basic… » | Autorisations pas encore ajoutées à l'app | Étape 2 |
+| Tamtam affiche « Connexion expirée ou invalide » | Retour sur Tamtam sans connexion valable, par exemple après avoir cliqué « OK » sur un message d'erreur de Facebook, ou plus de 30 minutes passées sur Facebook | Corriger l'erreur Facebook, puis relancer « Connecter » depuis la page Comptes |
+| Tamtam affiche « Aucun compte trouvé » | Pas de Page gérée par ce compte Facebook, ou Page non cochée pendant la connexion | Vérifier « Avant de commencer » ; relancer et cocher la Page |
+| Le compte Instagram n'apparaît pas | Compte personnel ou non relié à la Page | Passer en compte professionnel et le relier à la Page |
+
+Tant que Meta n'a pas validé l'app (« App Review »), elle reste en mode développement : seules les personnes qui
+ont un rôle sur l'app peuvent connecter leurs comptes. Cela suffit pour publier sur vos propres Pages. La
+validation n'est nécessaire que pour laisser d'autres personnes connecter leurs comptes.
+
 ### Utilisateurs
 
 Ajoutez les personnes qui publient. Tous les utilisateurs voient tous les projets ; seuls les administrateurs

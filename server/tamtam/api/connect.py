@@ -94,11 +94,14 @@ async def callback(provider: str, request: Request, conn=Depends(get_conn)):
     row = await fetchone(conn, "DELETE FROM oauth_states WHERE state=%s AND provider=%s "
                                "AND created_at > now() - interval '30 minutes' RETURNING *", (state, provider))
     await conn.commit()
-    if not row:
-        return _back("Connexion expirée ou invalide, recommencez depuis la page Comptes.", ok=False)
     if q.get("error"):
         reason = q.get("error_description") or q.get("error_reason") or q.get("error")
+        _log.info("connexion %s : le réseau a renvoyé une erreur (%s)", provider, reason)
         return _back(f"Connexion annulée sur {platforms.PROVIDER_LABELS[provider]} ({reason}).", ok=False)
+    if not row:
+        why = "sans état" if not state else "état inconnu, déjà utilisé ou de plus de 30 minutes"
+        _log.warning("connexion %s : retour refusé (%s, code %s)", provider, why, "présent" if q.get("code") else "absent")
+        return _back("Connexion expirée ou invalide, recommencez depuis la page Comptes.", ok=False)
     code = q.get("code")
     if not code:
         return _back("Le réseau n'a pas renvoyé d'autorisation.", ok=False)
