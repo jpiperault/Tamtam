@@ -1,0 +1,46 @@
+# Essai local qui reproduit le serveur Hangar, en mode simulation. Valeurs factices : ne pas réutiliser en production.
+#   docker compose -f docker-compose.local.yml up -d --build
+#   curl -i http://127.0.0.1:8092/health
+# Premier lancement : le dossier ./.data doit appartenir à l'utilisateur 10001 (comme /data sur Hangar) :
+#   mkdir -p .data && chown 10001:10001 .data
+name: tamtam-local
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: tamtam
+      POSTGRES_PASSWORD: tamtam-local
+      POSTGRES_DB: tamtam
+    volumes:
+      - ./.pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tamtam -d tamtam"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      platforms: ["linux/amd64"]
+    image: tamtam:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tamtam:tamtam-local@postgres:5432/tamtam
+      SESSION_SECRET: dev-only-secret-0123456789abcdef0123456789abcdef
+      TOKEN_KEY: ZGV2LW9ubHktdG9rZW4ta2V5LTAxMjM0NTY3ODlhYmM=
+      ADMIN_EMAIL: admin@example.test
+      ADMIN_PASSWORD: dev-admin-password
+      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8092}
+      SIMULATION: ${SIMULATION:-true}
+      DEMO_DATA: ${DEMO_DATA:-true}
+    volumes:
+      - ./.data:/data
+    ports:
+      - "127.0.0.1:${TAMTAM_PORT:-8092}:8080"
+    mem_limit: 512m
+    stop_grace_period: 10s
+    restart: unless-stopped

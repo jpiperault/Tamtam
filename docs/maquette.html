@@ -1,0 +1,602 @@
+<title>Tamtam Social</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout : app à barre latérale (nav + projet actif), zone de travail en 2 colonnes éditeur / aperçus */
+:root{
+  --bg:#F3F5F4; --panel:#FFFFFF; --sunk:#E8ECEA; --line:#D5DCD9;
+  --fg:#16211E; --muted:#5B6B66; --accent:#0E6E5C; --accent-ink:#FFFFFF; --accent-soft:#D6ECE6;
+  --warn:#9A5B00; --warn-soft:#FBEBD0; --bad:#B3261E; --bad-soft:#F9DEDC; --ok:#1E7A3C; --ok-soft:#DDF1E2;
+  --ig:#C13584; --fb:#1877F2; --x:#111111; --tt:#00A8A8;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Manrope", system-ui, -apple-system, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1513; --panel:#161E1B; --sunk:#1D2723; --line:#2A3632;
+  --fg:#E4ECE9; --muted:#93A39E; --accent:#3DBE9F; --accent-ink:#06231C; --accent-soft:#163A32;
+  --warn:#F0B35A; --warn-soft:#3A2B12; --bad:#F2867E; --bad-soft:#3D1A18; --ok:#6CD38F; --ok-soft:#163222;
+  --ig:#E56AB3; --fb:#5A9BF5; --x:#E4ECE9; --tt:#3FD3D3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1513; --panel:#161E1B; --sunk:#1D2723; --line:#2A3632;
+  --fg:#E4ECE9; --muted:#93A39E; --accent:#3DBE9F; --accent-ink:#06231C; --accent-soft:#163A32;
+  --warn:#F0B35A; --warn-soft:#3A2B12; --bad:#F2867E; --bad-soft:#3D1A18; --ok:#6CD38F; --ok-soft:#163222;
+  --ig:#E56AB3; --fb:#5A9BF5; --x:#E4ECE9; --tt:#3FD3D3; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100%}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.brand-mark svg{width:18px;height:18px}
+.brand b{font-family:var(--f-display);font-size:19px;font-weight:800}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+nav{display:flex;flex-direction:column;gap:2px}
+nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--fg);text-decoration:none;font-weight:600}
+nav a:hover{background:var(--sunk)}
+nav a[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+nav a .count{margin-left:auto;font-size:11px;background:var(--sunk);padding:1px 7px;border-radius:99px;color:var(--muted)}
+.proj{display:flex;flex-direction:column;gap:6px}
+.proj select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.side-foot{margin-top:auto;font-size:12px;color:var(--muted);padding:0 6px}
+.example-tag{display:inline-block;font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:2px 8px;border-radius:99px}
+
+main{min-width:0;padding-block:24px 60px;padding-left:max(24px, env(safe-area-inset-left,0px));padding-right:max(24px, env(safe-area-inset-right,0px))}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.head h1{font-size:28px;font-weight:800}
+.head p{margin:4px 0 0;color:var(--muted)}
+.view[hidden]{display:none!important}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:8px;font-weight:600}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.neutral{background:var(--sunk);color:var(--muted)}
+
+/* pastilles réseau */
+.pf{width:26px;height:26px;border-radius:7px;display:inline-grid;place-items:center;font-size:10px;font-weight:800;font-family:var(--f-mono);color:#fff;flex:none}
+.pf.ig{background:var(--ig)} .pf.fb{background:var(--fb)} .pf.x{background:var(--x);color:var(--bg)} .pf.tt{background:var(--tt)}
+
+/* ---------- Composer ---------- */
+.compose{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:20px;align-items:start}
+.editor{padding:18px;display:flex;flex-direction:column;gap:18px}
+.targets{display:flex;flex-wrap:wrap;gap:8px}
+.target{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:99px;padding:4px 12px 4px 4px;background:var(--bg);font-weight:600}
+.target[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.target[aria-pressed="false"] .pf{filter:grayscale(1);opacity:.5}
+.target.off{opacity:.55}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;background:none;padding:8px 12px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--fg);border-color:var(--accent)}
+textarea{width:100%;min-height:150px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg);line-height:1.55}
+.meter{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);gap:8px;flex-wrap:wrap}
+.bars{display:flex;gap:10px;flex-wrap:wrap}
+.bar{display:flex;align-items:center;gap:6px}
+.bar i{display:block;width:54px;height:5px;background:var(--sunk);border-radius:9px;overflow:hidden}
+.bar i b{display:block;height:100%;background:var(--accent)}
+.bar.over i b{background:var(--bad)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field input,.field select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%}
+.utm{font-size:12px;color:var(--muted);word-break:break-all;background:var(--sunk);padding:8px 10px;border-radius:8px}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;background:linear-gradient(135deg,var(--accent),var(--tt))}
+.ai{display:flex;gap:8px;flex-wrap:wrap}
+.ai button{font-size:12px;padding:5px 10px;border-radius:99px;border:1px solid var(--line);background:var(--bg);font-weight:600}
+.ai button:hover{border-color:var(--accent);color:var(--accent)}
+.when{display:flex;gap:8px;flex-wrap:wrap}
+.when label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:var(--bg);font-weight:600;cursor:pointer}
+.when input{accent-color:var(--accent)}
+.actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+.issues{display:flex;flex-direction:column;gap:6px}
+.issue{font-size:12.5px;display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:8px}
+.issue.warn{background:var(--warn-soft);color:var(--warn)} .issue.bad{background:var(--bad-soft);color:var(--bad)}
+
+.previews{display:flex;flex-direction:column;gap:14px;position:sticky;top:16px}
+.pv{padding:14px}
+.pv-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700}
+.pv-head .chip{margin-left:auto}
+.mock{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.mock .who{display:flex;align-items:center;gap:8px;padding:10px;font-weight:700;font-size:13px}
+.mock .who span{color:var(--muted);font-weight:500}
+.av{width:28px;height:28px;border-radius:50%;background:var(--accent);flex:none}
+.mock .media{aspect-ratio:1/1;max-width:100%;background:linear-gradient(135deg,var(--accent),var(--tt));display:grid;place-items:center;color:#fff;font-family:var(--f-display);font-size:22px;font-weight:800;background-size:cover;background-position:center}
+.mock .media.wide{aspect-ratio:16/9}
+.mock .media.tall{aspect-ratio:9/16;max-height:300px;width:auto;margin-inline:auto}
+.mock .txt{padding:10px;white-space:pre-wrap;word-break:break-word;font-size:13px}
+.mock .txt .more{color:var(--muted)}
+.mock .link{margin:0 10px 10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.mock .link b{display:block;color:var(--fg)}
+.empty-pv{padding:30px 16px;text-align:center;color:var(--muted)}
+
+/* ---------- Comptes ---------- */
+.accounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.acc{padding:18px;display:flex;flex-direction:column;gap:14px}
+.acc-top{display:flex;align-items:center;gap:12px}
+.acc-top .pf{width:40px;height:40px;border-radius:10px;font-size:13px}
+.acc-top h3{font-size:18px}
+.acc-top .chip{margin-left:auto}
+.acc dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:13px}
+.acc dt{color:var(--muted)} .acc dd{margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.acc .req{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.acc .acc-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(10,20,17,.5);display:grid;place-items:center;padding:16px;z-index:50}
+.modal{width:min(460px,100%);padding:22px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow:auto}
+.modal ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.scopes{display:flex;flex-wrap:wrap;gap:6px}
+.scopes code{font-family:var(--f-mono);font-size:11.5px;background:var(--sunk);padding:2px 7px;border-radius:6px}
+
+/* ---------- Calendrier ---------- */
+.cal-wrap{overflow-x:auto}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;min-width:910px}
+.day{background:var(--panel);min-height:220px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.day h4{margin:0;font-size:12px;color:var(--muted);font-weight:700;display:flex;justify-content:space-between}
+.day.today h4{color:var(--accent)}
+.slot{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:12px;background:var(--bg);display:flex;flex-direction:column;gap:4px}
+.slot .pfs{display:flex;gap:3px}
+.slot .pfs .pf{width:18px;height:18px;font-size:8px;border-radius:5px}
+.slot time{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.slot.best{border-style:dashed;color:var(--muted);background:transparent}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.kpi{padding:14px}
+.kpi b{display:block;font-family:var(--f-display);font-size:26px}
+.kpi span{font-size:12px;color:var(--muted)}
+
+/* ---------- Features ---------- */
+.lead{max-width:68ch;color:var(--muted);margin:0 0 22px}
+.phase{margin-bottom:28px}
+.phase-head{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.phase-head h2{font-size:21px}
+.phase-head p{margin:0;color:var(--muted)}
+.feats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.feat{padding:16px;display:flex;flex-direction:column;gap:8px}
+.feat h3{font-size:15.5px;font-family:var(--f-body);font-weight:700}
+.feat p{margin:0;color:var(--muted);font-size:13px}
+.feat .why{font-size:12.5px;color:var(--fg);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+.feat .why b{color:var(--accent)}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+td:first-child{font-weight:700;white-space:nowrap}
+
+.toast{position:fixed;right:max(20px, env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:12px 16px;border-radius:10px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:60;max-width:calc(100% - 40px)}
+.prog{display:flex;flex-direction:column;gap:8px}
+.prog div{display:flex;align-items:center;gap:10px}
+.prog .chip{margin-left:auto}
+
+@media (max-width:1100px){.compose{grid-template-columns:1fr}.previews{position:static}.feats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  aside{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px;padding:12px max(16px, env(safe-area-inset-right,0px)) 12px max(16px, env(safe-area-inset-left,0px));border-right:0;border-bottom:1px solid var(--line)}
+  aside .label,.side-foot{display:none}
+  nav{flex-direction:row;overflow-x:auto;width:100%}
+  nav a{white-space:nowrap}
+  .proj{width:100%}
+  main{padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+  .accounts,.feats,.row{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:no-preference){.btn,.target,nav a{transition:background .15s,border-color .15s}}
+</style>
+
+<div class="app">
+  <aside>
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"><path d="M4 12h8"/><path d="M12 12l8-7"/><path d="M12 12l8 7"/><path d="M12 12h8"/></svg></div>
+      <b>Tamtam</b>
+    </div>
+    <div class="proj">
+      <span class="label">Projet actif</span>
+      <select id="project" aria-label="Projet actif"></select>
+    </div>
+    <nav aria-label="Navigation">
+      <a href="#composer" data-view="composer">✎ Nouveau post</a>
+      <a href="#comptes" data-view="comptes">⚇ Comptes <span class="count" id="nav-acc">0/4</span></a>
+      <a href="#calendrier" data-view="calendrier">▦ Calendrier</a>
+      <a href="#features" data-view="features">★ Features proposées</a>
+    </nav>
+    <div class="side-foot"><span class="example-tag">Maquette</span><br>Données d'exemple, aucune publication réelle.</div>
+  </aside>
+
+  <main>
+    <!-- ============ COMPOSER ============ -->
+    <section class="view" id="v-composer">
+      <div class="head">
+        <div><h1>Nouveau post</h1><p>Un message, quatre réseaux, chacun dans son format.</p></div>
+      </div>
+      <div class="compose">
+        <div class="panel editor">
+          <div class="field">
+            <span class="label">Publier sur</span>
+            <div class="targets" id="targets"></div>
+          </div>
+
+          <div class="field">
+            <div class="tabs" role="tablist" id="txt-tabs"></div>
+            <textarea id="txt" aria-label="Texte du post"></textarea>
+            <div class="meter"><div class="bars" id="bars"></div><span id="tab-hint"></span></div>
+            <div class="ai" aria-label="Assistant de rédaction">
+              <button data-ai="short">✨ Version courte pour X</button>
+              <button data-ai="hook">✨ Accroche TikTok</button>
+              <button data-ai="tags">＃ Suggérer des hashtags</button>
+              <button data-ai="emoji">Ajouter un appel à l'action</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="label">Média</span>
+            <div class="drop">
+              <img class="thumb" id="thumb" alt="" hidden>
+              <div class="thumb" id="thumb-ph"></div>
+              <div style="min-width:0;flex:1">
+                <b id="media-name">capture-ecran-v2.png (exemple)</b><br>
+                <span style="color:var(--muted);font-size:12.5px">Image ou vidéo. Recadrage auto : 1:1 Instagram, 16:9 X/Facebook, 9:16 TikTok.</span>
+              </div>
+              <label class="btn" for="file">Remplacer</label>
+              <input type="file" id="file" accept="image/*,video/*" hidden>
+              <button class="btn" id="no-media">Retirer</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="link">Lien à promouvoir</label>
+              <input id="link" type="url">
+            </div>
+            <div class="field">
+              <label class="label" for="campaign">Campagne</label>
+              <select id="campaign">
+                <option value="lancement-v2">Lancement v2</option>
+                <option value="evergreen">Contenu permanent</option>
+                <option value="promo-noel">Promo de Noël</option>
+              </select>
+            </div>
+          </div>
+          <div class="utm mono" id="utm"></div>
+
+          <div class="field">
+            <span class="label">Quand</span>
+            <div class="when">
+              <label><input type="radio" name="when" value="now" id="w-now"> Maintenant</label>
+              <label><input type="radio" name="when" value="best" id="w-best" checked> Meilleur créneau par réseau</label>
+              <label><input type="radio" name="when" value="date" id="w-date"> Date précise</label>
+            </div>
+            <span style="font-size:12.5px;color:var(--muted)" id="when-hint"></span>
+          </div>
+
+          <div class="issues" id="issues"></div>
+
+          <div class="actions">
+            <button class="btn" id="draft">Enregistrer le brouillon</button>
+            <button class="btn primary" id="publish">Programmer</button>
+          </div>
+        </div>
+
+        <div class="previews" id="previews"></div>
+      </div>
+    </section>
+
+    <!-- ============ COMPTES ============ -->
+    <section class="view" id="v-comptes" hidden>
+      <div class="head">
+        <div><h1>Comptes connectés</h1><p>Chaque projet a ses propres comptes. La connexion passe par la page officielle du réseau : Tamtam ne voit jamais vos mots de passe.</p></div>
+      </div>
+      <div class="accounts" id="accounts"></div>
+    </section>
+
+    <!-- ============ CALENDRIER ============ -->
+    <section class="view" id="v-calendrier" hidden>
+      <div class="head">
+        <div><h1>Semaine du 23 novembre</h1><p>Posts programmés et créneaux recommandés (en pointillés). <span class="example-tag">Exemple</span></p></div>
+        <div style="display:flex;gap:8px"><button class="btn">← Semaine préc.</button><button class="btn">Semaine suiv. →</button></div>
+      </div>
+      <div class="kpis">
+        <div class="panel kpi"><b class="mono">9</b><span>posts programmés</span></div>
+        <div class="panel kpi"><b class="mono">1 284</b><span>clics sur vos liens (7 j)</span></div>
+        <div class="panel kpi"><b class="mono">86</b><span>installations attribuées (7 j)</span></div>
+        <div class="panel kpi"><b class="mono">12</b><span>commentaires sans réponse</span></div>
+      </div>
+      <div class="cal-wrap"><div class="cal" id="cal"></div></div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section class="view" id="v-features" hidden>
+      <div class="head"><div><h1>Features proposées</h1></div></div>
+      <p class="lead">Le but de l'outil n'est pas seulement de publier partout, c'est de faire connaître vos apps et sites et de mesurer ce qui ramène des utilisateurs. Les features sont classées en trois étapes, de la plus utile à la plus ambitieuse.</p>
+      <div id="phases"></div>
+
+      <div class="phase">
+        <div class="phase-head"><h2>Ce que les réseaux autorisent vraiment</h2><p>À vérifier au moment de développer : les règles des API changent souvent.</p></div>
+        <div class="panel tbl-wrap">
+          <table>
+            <thead><tr><th>Réseau</th><th>Type de compte requis</th><th>Publication via API</th><th>Points d'attention</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pf ig">IG</span> Instagram</td><td>Compte Professionnel (Business ou Créateur)</td><td>Oui : images, carrousels, Reels, stories</td><td>Un média est obligatoire, pas de post texte seul. App Meta à faire valider (App Review).</td></tr>
+              <tr><td><span class="pf fb">FB</span> Facebook</td><td>Page Facebook (pas un profil perso)</td><td>Oui : texte, lien, photo, vidéo</td><td>Même app Meta qu'Instagram, une seule connexion peut couvrir les deux.</td></tr>
+              <tr><td><span class="pf x">X</span> X</td><td>Tout compte</td><td>Oui : texte, images, vidéos, fils</td><td>L'accès API en écriture est payant ou très limité selon l'offre. Prévoir un budget.</td></tr>
+              <tr><td><span class="pf tt">TT</span> TikTok</td><td>Tout compte (Business conseillé)</td><td>Oui : vidéos et carrousels photo</td><td>Tant que l'app n'a pas passé l'audit TikTok, les posts sont publiés en privé uniquement.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="panel modal" role="dialog" aria-modal="true" aria-labelledby="m-title" id="modal"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const PF = {
+  ig:{name:"Instagram", short:"IG", limit:2200, media:"required", ratio:"", handle:"@" },
+  fb:{name:"Facebook", short:"FB", limit:63206, media:"optional", ratio:"wide"},
+  x: {name:"X", short:"X", limit:280, media:"optional", ratio:"wide"},
+  tt:{name:"TikTok", short:"TT", limit:2200, media:"video", ratio:"tall"}
+};
+const ORDER = ["ig","fb","x","tt"];
+const PROJECTS = [
+  {id:"kite", name:"Vent Fort — appli météo kite", url:"https://ventfort.app", handle:"ventfort"},
+  {id:"recettes", name:"Le Bon Plat — site de recettes", url:"https://lebonplat.fr", handle:"lebonplat"},
+  {id:"saas", name:"Facturo — outil SaaS", url:"https://facturo.io", handle:"facturo"}
+];
+const state = {
+  project:"kite",
+  accounts:{ kite:{ig:true,fb:true,x:true,tt:false}, recettes:{ig:true,fb:true,x:false,tt:false}, saas:{ig:false,fb:false,x:true,tt:false} },
+  selected:new Set(["ig","fb","x"]),
+  tab:"all",
+  text:{ all:"La v2 de Vent Fort est là 🪁\nPrévisions à 1 km près, alertes quand votre spot passe au-dessus de 18 nœuds, et un mode hors-ligne pour la plage.\n\nGratuit sur iOS et Android.", ig:null, fb:null, x:null, tt:null },
+  media:{type:"image", url:null, name:"capture-ecran-v2.png (exemple)"},
+  link:"https://ventfort.app/telecharger"
+};
+const $ = s => document.querySelector(s);
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const proj = () => PROJECTS.find(p => p.id === state.project);
+const connected = k => state.accounts[state.project][k];
+const textFor = k => state.text[k] ?? state.text.all;
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,3200); }
+
+/* ---- routing ---- */
+function route(){
+  const v = (location.hash||"#composer").slice(1);
+  const known = ["composer","comptes","calendrier","features"];
+  const view = known.includes(v) ? v : "composer";
+  known.forEach(k => $("#v-"+k).hidden = k !== view);
+  document.querySelectorAll("nav a").forEach(a => { if(a.dataset.view===view) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+}
+addEventListener("hashchange", route);
+
+/* ---- project ---- */
+$("#project").innerHTML = PROJECTS.map(p=>`<option value="${p.id}">${esc(p.name)} (exemple)</option>`).join("");
+$("#project").addEventListener("change", e => {
+  state.project = e.target.value;
+  state.selected = new Set(ORDER.filter(connected));
+  state.link = proj().url;
+  $("#link").value = state.link;
+  renderAll();
+});
+
+/* ---- composer ---- */
+function renderTargets(){
+  $("#targets").innerHTML = ORDER.map(k => {
+    const on = connected(k);
+    return `<button class="target ${on?"":"off"}" data-k="${k}" aria-pressed="${state.selected.has(k)}" ${on?"":'title="Compte non connecté"'}>
+      <span class="pf ${k}">${PF[k].short}</span>${PF[k].name}${on?"":' <span class="chip neutral">à connecter</span>'}</button>`;
+  }).join("");
+  $("#targets").querySelectorAll(".target").forEach(b => b.onclick = () => {
+    const k=b.dataset.k;
+    if(!connected(k)){ location.hash="#comptes"; openConnect(k); return; }
+    state.selected.has(k) ? state.selected.delete(k) : state.selected.add(k);
+    if(state.tab!=="all" && !state.selected.has(state.tab)) state.tab="all";
+    renderComposer();
+  });
+}
+function renderTabs(){
+  const tabs = [["all","Texte commun"], ...[...state.selected].sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b)).map(k=>[k, PF[k].name + (state.text[k]!=null?" •":"")])];
+  $("#txt-tabs").innerHTML = tabs.map(([k,l])=>`<button role="tab" aria-selected="${state.tab===k}" data-k="${k}">${l}</button>`).join("");
+  $("#txt-tabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.k; renderComposer();});
+  $("#txt").value = state.tab==="all" ? state.text.all : textFor(state.tab);
+  $("#tab-hint").textContent = state.tab==="all" ? "Modifiez un onglet réseau pour adapter le texte à ce réseau seulement." :
+    (state.text[state.tab]!=null ? "Texte adapté pour "+PF[state.tab].name+"." : "Utilise le texte commun. Tapez pour l'adapter.");
+}
+$("#txt").addEventListener("input", e => {
+  if(state.tab==="all") state.text.all = e.target.value; else state.text[state.tab] = e.target.value;
+  renderBars(); renderPreviews(); renderIssues();
+  if(state.tab!=="all") renderTabsLabelsOnly();
+});
+function renderTabsLabelsOnly(){ $("#txt-tabs").querySelectorAll("button").forEach(b=>{const k=b.dataset.k; if(k!=="all") b.textContent = PF[k].name + (state.text[k]!=null?" •":"");}); }
+function fullText(k){ let t = textFor(k); if(state.link && k!=="ig" && k!=="tt") t += "\n" + shortLink(k); if(k==="ig"||k==="tt") t += "\nLien dans la bio 👆"; return t; }
+function shortLink(k){ return "rls.li/" + state.project.slice(0,3) + "-" + k; }
+function renderBars(){
+  $("#bars").innerHTML = [...state.selected].sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b)).map(k=>{
+    const n=[...fullText(k)].length, L=PF[k].limit, pct=Math.min(100, n/Math.min(L,2200)*100);
+    return `<span class="bar ${n>L?"over":""}"><span class="pf ${k}" style="width:18px;height:18px;font-size:8px;border-radius:5px">${PF[k].short}</span><i><b style="width:${pct}%"></b></i><span class="mono">${n}/${L>9999?"∞":L}</span></span>`;
+  }).join("");
+}
+function utm(){
+  const c=$("#campaign").value;
+  return state.link ? `${state.link}${state.link.includes("?")?"&":"?"}utm_source={reseau}&utm_medium=social&utm_campaign=${c}` : "";
+}
+function renderUtm(){ $("#utm").innerHTML = state.link ? `Lien suivi (généré pour chaque réseau) : ${esc(utm())}<br>Lien court affiché : rls.li/${state.project.slice(0,3)}-x` : "Ajoutez un lien pour suivre les clics et installations par réseau."; }
+function renderIssues(){
+  const out=[];
+  for(const k of state.selected){
+    const n=[...fullText(k)].length;
+    if(n>PF[k].limit) out.push(["bad",`${PF[k].name} : ${n-PF[k].limit} caractères de trop. Utilisez l'onglet ${PF[k].name} ou « Version courte ».`]);
+    if(PF[k].media==="required" && !state.media.type) out.push(["bad","Instagram : une image ou une vidéo est obligatoire."]);
+    if(PF[k].media==="video" && state.media.type!=="video") out.push(["warn","TikTok : une vidéo est conseillée. Une image sera publiée en carrousel photo."]);
+  }
+  if(state.selected.has("tt")) out.push(["warn","TikTok : tant que l'app n'est pas auditée par TikTok, le post sera visible en privé uniquement."]);
+  $("#issues").innerHTML = out.map(([c,m])=>`<div class="issue ${c}">${c==="bad"?"⛔":"⚠"} <span>${esc(m)}</span></div>`).join("");
+  const blocked = out.some(o=>o[0]==="bad") || !state.selected.size;
+  $("#publish").disabled = blocked;
+}
+function whenHint(){
+  const v=document.querySelector('input[name="when"]:checked').value;
+  $("#publish").textContent = v==="now" ? "Publier maintenant" : "Programmer";
+  $("#when-hint").textContent = v==="best" ? "Selon l'historique de vos comptes : Instagram mar. 18:30 · Facebook mar. 12:15 · X mar. 08:45 · TikTok mar. 20:00" :
+    v==="date" ? "Choix de date et heure, avec fuseau du public visé." : "Publication immédiate sur tous les réseaux cochés.";
+}
+document.querySelectorAll('input[name="when"]').forEach(r=>r.onchange=whenHint);
+
+function renderPreviews(){
+  const sel=[...state.selected].sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b));
+  if(!sel.length){ $("#previews").innerHTML = `<div class="panel empty-pv">Choisissez au moins un réseau pour voir l'aperçu.</div>`; return; }
+  const p=proj();
+  const mediaStyle = state.media.url && state.media.type==="image" ? `style="background-image:url(${state.media.url})"` : "";
+  $("#previews").innerHTML = sel.map(k=>{
+    const t = esc(fullText(k));
+    const n=[...fullText(k)].length, over=n>PF[k].limit;
+    const status = over ? `<span class="chip bad">Trop long</span>` : `<span class="chip ok">Prêt</span>`;
+    let body="";
+    const mediaBox = cls => state.media.type ? `<div class="media ${cls}" ${mediaStyle}>${state.media.url?"":"Vent Fort v2"}</div>` : "";
+    if(k==="ig"){
+      const short = t.length>125 ? t.slice(0,125)+'<span class="more">… plus</span>' : t;
+      body = `<div class="who"><div class="av"></div>${p.handle}</div>${mediaBox("")}<div class="txt"><b>${p.handle}</b> ${short}</div>`;
+    } else if(k==="fb"){
+      body = `<div class="who"><div class="av"></div><div>${esc(p.name.split(" —")[0])}<br><span>Page · Sponsorisé non</span></div></div><div class="txt">${t}</div>${mediaBox("wide")}<div class="link"><b>${esc(p.url.replace("https://",""))}</b>Téléchargez l'appli</div>`;
+    } else if(k==="x"){
+      body = `<div class="who"><div class="av"></div><div>${esc(p.name.split(" —")[0])} <span>@${p.handle}</span></div></div><div class="txt">${t}</div>${mediaBox("wide")}`;
+    } else {
+      body = `${state.media.type?`<div class="media tall" ${mediaStyle}>${state.media.url?"":"▶"}</div>`:""}<div class="txt"><b>@${p.handle}</b> ${t.length>150?t.slice(0,150)+'<span class="more">… plus</span>':t}</div>`;
+    }
+    return `<div class="panel pv"><div class="pv-head"><span class="pf ${k}">${PF[k].short}</span>${PF[k].name}${status}</div><div class="mock">${body}</div></div>`;
+  }).join("");
+}
+function renderComposer(){ renderTargets(); renderTabs(); renderBars(); renderUtm(); renderIssues(); renderPreviews(); whenHint(); }
+
+$("#link").addEventListener("input", e=>{ state.link=e.target.value.trim(); renderUtm(); renderBars(); renderPreviews(); renderIssues(); });
+$("#campaign").onchange = renderUtm;
+$("#file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ state.media={type:f.type.startsWith("video")?"video":"image", url:f.type.startsWith("image")?r.result:null, name:f.name};
+    $("#thumb").src = state.media.url||""; $("#thumb").hidden=!state.media.url; $("#thumb-ph").hidden=!!state.media.url;
+    $("#media-name").textContent=f.name; renderPreviews(); renderIssues(); };
+  r.readAsDataURL(f);
+});
+$("#no-media").onclick=()=>{ state.media={type:null,url:null,name:""}; $("#thumb").hidden=true; $("#thumb-ph").hidden=true; $("#media-name").textContent="Aucun média"; renderPreviews(); renderIssues(); };
+
+document.querySelectorAll("[data-ai]").forEach(b=>b.onclick=()=>{
+  const a=b.dataset.ai;
+  if(a==="short"){ state.selected.add("x"); state.text.x="Vent Fort v2 🪁 Prévisions à 1 km, alertes 18 nœuds+, mode hors-ligne. Gratuit iOS/Android."; state.tab="x"; toast("Version courte générée pour X"); }
+  if(a==="hook"){ if(!connected("tt")){ toast("Connectez TikTok pour l'utiliser"); return;} state.selected.add("tt"); state.text.tt="POV : ton spot passe à 22 nœuds et t'es encore au bureau 😩\nVent Fort v2 t'alerte avant tout le monde. #kitesurf #kite #windsurf"; state.tab="tt"; toast("Accroche TikTok générée"); }
+  if(a==="tags"){ const k=state.tab; const add="\n\n#kitesurf #kiteboarding #meteo #windfinder"; if(k==="all") state.text.all+=add; else state.text[k]=textFor(k)+add; toast("4 hashtags ajoutés (populaires dans votre niche)"); }
+  if(a==="emoji"){ const k=state.tab; const add="\n👉 Télécharge-la, c'est gratuit."; if(k==="all") state.text.all+=add; else state.text[k]=textFor(k)+add; toast("Appel à l'action ajouté"); }
+  renderComposer();
+});
+$("#draft").onclick=()=>toast("Brouillon enregistré");
+$("#publish").onclick=()=>{
+  const sel=[...state.selected];
+  const m=$("#modal");
+  m.innerHTML=`<h2 id="m-title">Publication en cours</h2><div class="prog">${sel.map(k=>`<div><span class="pf ${k}">${PF[k].short}</span>${PF[k].name}<span class="chip neutral" id="p-${k}">En attente</span></div>`).join("")}</div><p style="margin:0;color:var(--muted);font-size:12.5px">Simulation : dans la vraie appli, chaque réseau est traité séparément et un échec sur l'un ne bloque pas les autres.</p><div class="actions"><button class="btn primary" id="m-close" disabled>Fermer</button></div>`;
+  $("#scrim").hidden=false;
+  const now = document.querySelector('input[name="when"]:checked').value==="now";
+  sel.forEach((k,i)=>setTimeout(()=>{ const c=$("#p-"+k); c.className="chip ok"; c.textContent= now ? (k==="tt"?"Publié (privé)":"Publié") : "Programmé"; if(i===sel.length-1){ $("#m-close").disabled=false; $("#m-close").focus(); } }, 600*(i+1)));
+  m.onclick=e=>{ if(e.target.id==="m-close"){ $("#scrim").hidden=true; toast(now?"Publié sur "+sel.length+" réseaux":"Programmé sur "+sel.length+" réseaux"); } };
+};
+
+/* ---- comptes ---- */
+const CONNECT_INFO = {
+  ig:{steps:["Vous êtes redirigé vers Facebook (Instagram passe par Meta).","Vous choisissez le compte Instagram Professionnel et la Page liée.","Vous acceptez les autorisations, puis revenez sur Tamtam."], scopes:["instagram_basic","instagram_content_publish","instagram_manage_comments","instagram_manage_insights"], req:"Requiert un compte Instagram Professionnel relié à une Page Facebook."},
+  fb:{steps:["Vous êtes redirigé vers Facebook.","Vous choisissez les Pages à gérer.","Vous acceptez les autorisations, puis revenez sur Tamtam."], scopes:["pages_manage_posts","pages_read_engagement","pages_manage_engagement","read_insights"], req:"Publie sur une Page, pas sur un profil personnel."},
+  x:{steps:["Vous êtes redirigé vers x.com.","Vous autorisez Tamtam à publier pour ce compte.","Retour automatique sur Tamtam."], scopes:["tweet.read","tweet.write","users.read","media.write","offline.access"], req:"Accès API en écriture payant ou limité selon l'offre X."},
+  tt:{steps:["Vous êtes redirigé vers TikTok.","Vous vous connectez et autorisez Tamtam.","Retour automatique sur Tamtam."], scopes:["user.info.basic","video.upload","video.publish","video.list"], req:"Posts privés tant que l'app n'a pas passé l'audit TikTok."}
+};
+const ACC_DATA = { ig:{followers:"3 412", last:"il y a 2 j", token:"expire dans 54 j"}, fb:{followers:"1 087", last:"il y a 2 j", token:"expire dans 54 j"}, x:{followers:"926", last:"hier", token:"renouvelé auto"}, tt:{followers:"—", last:"—", token:"—"} };
+function renderAccounts(){
+  const p=proj();
+  $("#nav-acc").textContent = ORDER.filter(connected).length + "/4";
+  $("#accounts").innerHTML = ORDER.map(k=>{
+    const on=connected(k), d=ACC_DATA[k];
+    return `<div class="panel acc"><div class="acc-top"><span class="pf ${k}">${PF[k].short}</span><div><h3>${PF[k].name}</h3><span style="color:var(--muted);font-size:12.5px">${on?"@"+p.handle:"Non connecté"}</span></div>${on?'<span class="chip ok">Connecté</span>':'<span class="chip neutral">À connecter</span>'}</div>
+      ${on?`<dl><dt>Abonnés</dt><dd class="mono">${d.followers}</dd><dt>Dernier post</dt><dd>${d.last}</dd><dt>Autorisation</dt><dd>${d.token}</dd></dl>`:`<p style="margin:0;color:var(--muted)">Connectez ce compte pour publier sur ${PF[k].name} depuis Tamtam.</p>`}
+      <div class="req">${CONNECT_INFO[k].req}</div>
+      <div class="acc-actions">${on?`<button class="btn" data-dis="${k}">Déconnecter</button><button class="btn" data-re="${k}">Reconnecter</button>`:`<button class="btn primary" data-con="${k}">Connecter ${PF[k].name}</button>`}</div></div>`;
+  }).join("");
+  $("#accounts").querySelectorAll("[data-con],[data-re]").forEach(b=>b.onclick=()=>openConnect(b.dataset.con||b.dataset.re));
+  $("#accounts").querySelectorAll("[data-dis]").forEach(b=>b.onclick=()=>{ const k=b.dataset.dis; state.accounts[state.project][k]=false; state.selected.delete(k); renderAll(); toast(PF[k].name+" déconnecté"); });
+}
+function openConnect(k){
+  const i=CONNECT_INFO[k];
+  $("#modal").innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span class="pf ${k}" style="width:36px;height:36px;font-size:12px">${PF[k].short}</span><h2 id="m-title">Connecter ${PF[k].name}</h2></div>
+    <p style="margin:0">Pour le projet <b>${esc(proj().name)}</b>.</p>
+    <ol>${i.steps.map(s=>`<li>${s}</li>`).join("")}</ol>
+    <div><span class="label">Autorisations demandées</span><div class="scopes" style="margin-top:6px">${i.scopes.map(s=>`<code>${s}</code>`).join("")}</div></div>
+    <div class="issue warn">⚠ <span>${i.req}</span></div>
+    <div class="actions"><button class="btn" id="m-cancel">Annuler</button><button class="btn primary" id="m-go">Continuer vers ${PF[k].name}</button></div>`;
+  $("#scrim").hidden=false; $("#m-go").focus();
+  $("#modal").onclick=e=>{
+    if(e.target.id==="m-cancel") $("#scrim").hidden=true;
+    if(e.target.id==="m-go"){ e.target.disabled=true; e.target.textContent="Connexion…"; setTimeout(()=>{ state.accounts[state.project][k]=true; state.selected.add(k); $("#scrim").hidden=true; renderAll(); toast(PF[k].name+" connecté (simulation)"); },900); }
+  };
+}
+$("#scrim").addEventListener("click", e=>{ if(e.target.id==="scrim" && !$("#m-close")?.disabled) $("#scrim").hidden=true; });
+addEventListener("keydown", e=>{ if(e.key==="Escape") $("#scrim").hidden=true; });
+
+/* ---- calendrier ---- */
+const DAYS=["Lun 23","Mar 24","Mer 25","Jeu 26","Ven 27","Sam 28","Dim 29"];
+const CAL=[
+  [ {t:"08:45",p:["x"],s:"Astuce : régler les alertes de vent"}, {t:"18:30",best:true,p:["ig"]} ],
+  [ {t:"12:15",p:["fb","ig"],s:"Lancement v2 — annonce"}, {t:"20:00",p:["tt"],s:"Démo 15 s du mode hors-ligne"} ],
+  [ {t:"09:00",p:["x"],s:"Fil : les 5 nouveautés de la v2"} ],
+  [ {t:"18:00",p:["ig","fb"],s:"Témoignage utilisateur (UGC)"}, {t:"08:45",best:true,p:["x"]} ],
+  [ {t:"12:30",p:["fb","x"],s:"Le Bon Plat : recette du vendredi"} ],
+  [ {t:"10:00",p:["ig","tt"],s:"Coulisses : spot de Leucate"} ],
+  [ {t:"19:00",p:["x","fb"],s:"Récap de la semaine + lien"}, {t:"20:00",best:true,p:["tt"]} ]
+];
+function renderCal(){
+  $("#cal").innerHTML = DAYS.map((d,i)=>`<div class="day ${i===1?"today":""}"><h4>${d}${i===1?"<span>auj.</span>":""}</h4>${CAL[i].map(s=>`<div class="slot ${s.best?"best":""}"><div class="pfs">${s.p.map(k=>`<span class="pf ${k}">${PF[k].short}</span>`).join("")}</div><time>${s.t}</time>${s.best?"Créneau recommandé":esc(s.s)}</div>`).join("")}</div>`).join("");
+}
+
+/* ---- features ---- */
+const PHASES=[
+  {name:"Étape 1 · Le socle", sub:"Ce qu'il faut pour remplacer quatre applis par une.", items:[
+    ["Multi-projets","Chaque app ou site a ses comptes, ses brouillons et ses stats. Changement de projet en un clic.","Vous gérez plusieurs produits : rien ne se mélange."],
+    ["Un texte, quatre versions","Texte commun puis adaptation par réseau, avec compteur de caractères et alertes de format.","Un post copié-collé partout performe mal. Chaque réseau a son ton."],
+    ["Recadrage auto des médias","1:1, 4:5, 16:9 et 9:16 générés depuis une seule image, avec zone utile à ajuster.","Évite d'ouvrir un éditeur d'image à chaque post."],
+    ["Programmation et calendrier","Vue semaine et mois, glisser-déposer pour déplacer un post, file d'attente par projet.","Publier régulièrement compte plus que publier beaucoup."],
+    ["Liens suivis automatiquement","Paramètres UTM et lien court générés par réseau, pour savoir d'où viennent les visites.","Sans ça, impossible de savoir quel réseau ramène des utilisateurs."],
+    ["Rapport d'échec clair","Si un réseau refuse un post, on dit pourquoi et on propose de réessayer, sans bloquer les autres.","Les API sociales échouent souvent : il faut le voir tout de suite."]
+  ]},
+  {name:"Étape 2 · Faire connaître vos produits", sub:"Les features pensées pour la promotion d'apps et de sites.", items:[
+    ["Page « lien en bio »","Une mini-page par projet avec liens App Store, Google Play et site. Instagram et TikTok ne permettent pas de liens dans les posts.","Récupère le trafic perdu sur les deux réseaux les plus visuels."],
+    ["Du changelog au post","Collez vos notes de version ou branchez le dépôt Git : Tamtam propose un post par nouveauté, au bon format pour chaque réseau.","Chaque mise à jour devient du contenu, sans effort."],
+    ["Kits de lancement","Modèles de campagne sur 2 semaines : teasing, J-1, jour J, témoignages, rappel. Remplis avec votre produit.","Un lancement préparé fait bien plus de bruit qu'un post isolé."],
+    ["Recyclage du contenu permanent","Une bibliothèque de posts « toujours vrais » qui repassent automatiquement quand le calendrier est vide.","Garde les comptes vivants pendant que vous codez."],
+    ["Promotion croisée","Quand un projet publie, suggestion d'un post lié sur les comptes des autres projets.","Vos audiences existantes aident à lancer les nouveaux produits."],
+    ["Assistant de rédaction IA","Accroches, versions courtes, hashtags de niche, traduction anglaise. Toujours relu avant envoi.","Gagne du temps sur la partie la plus pénible."]
+  ]},
+  {name:"Étape 3 · Mesurer et répondre", sub:"Savoir ce qui marche, et ne laisser aucun commentaire sans réponse.", items:[
+    ["Du clic à l'installation","Relie les clics des liens suivis aux installations et inscriptions (via vos stats d'app ou de site).","La seule mesure qui compte : combien d'utilisateurs chaque post a ramenés."],
+    ["Boîte de réception unifiée","Commentaires et messages des quatre réseaux au même endroit, avec réponses types.","Répondre vite fait remonter les posts dans les algorithmes."],
+    ["Meilleurs créneaux appris","Analyse des posts passés pour proposer l'heure qui marche le mieux, par réseau et par projet.","Le même post peut faire 3 fois plus selon l'heure."],
+    ["Veille de mots-clés","Alerte quand quelqu'un parle de votre niche ou de vos concurrents, avec suggestion de réponse.","Les meilleures occasions de vous faire connaître sont dans les conversations des autres."],
+    ["Contenus des utilisateurs","Repérer les posts qui mentionnent vos apps et demander l'autorisation de les republier.","Un avis d'utilisateur convainc plus que votre propre pub."],
+    ["Rapport hebdo","Un résumé chaque lundi : meilleur post, réseau le plus rentable, idées pour la semaine.","Une décision par semaine plutôt qu'un tableau de bord qu'on n'ouvre jamais."]
+  ]}
+];
+$("#phases").innerHTML = PHASES.map(ph=>`<div class="phase"><div class="phase-head"><h2>${ph.name}</h2><p>${ph.sub}</p></div><div class="feats">${ph.items.map(([t,d,w])=>`<div class="panel feat"><h3>${t}</h3><p>${d}</p><div class="why"><b>Pourquoi :</b> ${w}</div></div>`).join("")}</div></div>`).join("");
+
+function renderAll(){ $("#project").value=state.project; renderComposer(); renderAccounts(); renderCal(); }
+$("#link").value = state.link;
+renderAll(); route();
+</script>

@@ -1,0 +1,15 @@
+.git
+.github
+.data
+.pgdata
+.env*
+**/node_modules
+web/dist
+**/dist
+**/build
+.gradle
+**/__pycache__
+**/.pytest_cache
+server/tests
+*.md
+!docs/guide.md
