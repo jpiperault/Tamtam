@@ -20,6 +20,7 @@ class PostIn(BaseModel):
     media_ids: list[int] = Field(default_factory=list, max_length=35)
     link_url: str = Field(default="", max_length=2000)
     campaign: str = Field(default="", max_length=80)
+    facebook_short_link: bool = False   # Facebook : lien court suivi /l/… au lieu du lien direct
     mode: str = Field(default="draft", pattern="^(draft|now|at)$")
     scheduled_at: datetime | None = None
 
@@ -103,10 +104,10 @@ def _sched(body: PostIn) -> tuple[str, datetime | None]:
 async def create_post(body: PostIn, user=Depends(current_user), conn=Depends(get_conn)):
     accounts, media = await _validate(conn, body)
     status, when = _sched(body)
-    row = await fetchone(conn, "INSERT INTO posts(project_id, created_by, body, link_url, campaign, scheduled_at, status) "
-                               "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                         (body.project_id, user["id"], body.body, body.link_url.strip(), body.campaign.strip(), when,
-                          status))
+    row = await fetchone(conn, "INSERT INTO posts(project_id, created_by, body, link_url, campaign, facebook_short_link, "
+                               "scheduled_at, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                         (body.project_id, user["id"], body.body, body.link_url.strip(), body.campaign.strip(),
+                          body.facebook_short_link, when, status))
     await _write(conn, row["id"], body, accounts, media)
     await conn.commit()
     return await _post_full(conn, row["id"])
@@ -121,8 +122,10 @@ async def update_post(post_id: int, body: PostIn, user=Depends(current_user), co
         raise HTTPException(409, "ce post est déjà en cours de publication ou publié : dupliquez-le pour le modifier")
     accounts, media = await _validate(conn, body)
     status, when = _sched(body)
-    await conn.execute("UPDATE posts SET body=%s, link_url=%s, campaign=%s, scheduled_at=%s, status=%s, updated_at=now() "
-                       "WHERE id=%s", (body.body, body.link_url.strip(), body.campaign.strip(), when, status, post_id))
+    await conn.execute("UPDATE posts SET body=%s, link_url=%s, campaign=%s, facebook_short_link=%s, scheduled_at=%s, status=%s, "
+                       "updated_at=now() WHERE id=%s",
+                       (body.body, body.link_url.strip(), body.campaign.strip(), body.facebook_short_link, when, status,
+                        post_id))
     await _write(conn, post_id, body, accounts, media)
     await conn.commit()
     return await _post_full(conn, post_id)

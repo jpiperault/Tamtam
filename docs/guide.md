@@ -11,9 +11,11 @@ que chaque réseau vous ramène.
   publier pour vous. Vous donnez ce droit sur la page officielle du réseau ; Tamtam ne voit jamais votre mot de passe.
 - **Texte commun / texte adapté** : vous écrivez un texte pour tous les réseaux, puis vous pouvez l'adapter pour un
   réseau précis (plus court pour X, plus accrocheur pour TikTok…).
-- **Lien suivi** : sur Facebook et X, Tamtam remplace le lien de votre post par un lien court (`/l/…`) qui compte
-  les clics, puis renvoie vers votre page avec des paramètres `utm_` (utm_source = le réseau). Vos outils de
-  statistiques de site voient ainsi d'où vient chaque visite.
+- **Lien suivi** : sur X, Tamtam remplace le lien de votre post par un lien court (`/l/…`) qui compte les clics,
+  puis renvoie vers votre page avec des paramètres `utm_` (utm_source = le réseau). Sur Facebook, c'est une
+  **option** à cocher dans chaque post : sans elle, le lien direct vers votre page est publié (avec ses paramètres
+  `utm_`, mais sans comptage des clics dans Tamtam). Vos outils de statistiques de site voient d'où vient chaque
+  visite dans les deux cas.
 
 ## Premiers pas
 
@@ -37,13 +39,15 @@ Si un bouton « Connecter » est grisé, l'application de ce réseau n'est pas e
 - **Médias** : glissez des fichiers ou cliquez sur « Ajouter ». Les images sont converties en JPEG (2048 px au
   plus). Vidéos acceptées : MP4 et MOV. La **médiathèque** garde tout ce qui a été envoyé pour le projet.
 - **Campagne** : un mot court (par exemple `lancement-v2`) qui sert à regrouper les visites dans vos statistiques.
+- **Facebook : utiliser aussi le lien court suivi** (case sous le lien, visible quand un compte Facebook est choisi) :
+  décochée par défaut, le post Facebook montre votre vrai lien. Cochez-la pour compter les clics Facebook dans Tamtam.
 
 ### Ce que chaque réseau impose
 
 | Réseau | Texte | Médias | Lien |
 |---|---|---|---|
 | Instagram | 2 200 caractères | obligatoire : 1 image, 1 vidéo (Reel) ou un carrousel de 10 au plus | pas cliquable : mettez-le dans la bio |
-| Facebook | très long | facultatif : jusqu'à 10 images ou 1 vidéo | cliquable, suivi |
+| Facebook | très long | facultatif : jusqu'à 10 images ou 1 vidéo | cliquable ; suivi si l'option est cochée |
 | X | 280 caractères (un lien compte pour 23) | facultatif : 4 images ou 1 vidéo | cliquable, suivi |
 | TikTok | 2 200 caractères | obligatoire : 1 vidéo, ou des photos (carrousel) | pas cliquable : mettez-le dans la bio |
 
@@ -59,7 +63,8 @@ ouvre un nouveau post à la date du jour choisi. Cliquer un post programmé perm
 
 Nombre de clics sur les liens suivis, par réseau, et les posts qui ont ramené le plus de visites. Instagram et TikTok
 n'ayant pas de lien cliquable dans les posts, leurs visites se voient dans les statistiques de votre site (lien de
-bio avec `utm_source=instagram` par exemple).
+bio avec `utm_source=instagram` par exemple). Il en va de même pour Facebook quand le lien court n'est pas coché :
+cherchez `utm_source=facebook` dans les statistiques de votre site.
 
 ## Comptes : vérifier, retirer
 

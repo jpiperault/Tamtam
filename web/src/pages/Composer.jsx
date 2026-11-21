@@ -66,6 +66,7 @@ export default function Composer({ editId, copyId, date }) {
   const [media, setMedia] = useState([]);
   const [link, setLink] = useState(project.url || "");
   const [campaign, setCampaign] = useState("");
+  const [fbShort, setFbShort] = useState(false);
   const [mode, setMode] = useState(date ? "at" : "now");
   const [when, setWhen] = useState(() => {
     if (date) return `${date}T10:00`;
@@ -94,6 +95,7 @@ export default function Composer({ editId, copyId, date }) {
         setBody(p.body);
         setLink(p.link_url);
         setCampaign(p.campaign);
+        setFbShort(Boolean(p.facebook_short_link));
         setMedia(p.media);
         const ids = p.targets.map((t) => t.social_account_id).filter(Boolean);
         setSelected(ids);
@@ -122,6 +124,12 @@ export default function Composer({ editId, copyId, date }) {
   const textFor = (id) => (overrides[id] ?? body);
   const hasLink = Boolean(link.trim());
   const shortLink = `${rules.public_url}/l/…`;
+  const hasFacebook = chosen.some((a) => a.platform === "facebook");
+  const linkFor = (platform) => {
+    if (!hasLink || !rules.rules[platform].link_in_text) return "";
+    if (platform === "facebook" && !fbShort) return withUtm(link.trim(), "facebook", campaign.trim()) || link.trim();
+    return shortLink;
+  };
   const issues = useMemo(() => {
     const out = [];
     chosen.forEach((a) => out.push(...problems(rules, a.platform, textFor(a.id), kinds, hasLink)));
@@ -162,7 +170,7 @@ export default function Composer({ editId, copyId, date }) {
     const payload = {
       project_id: projectId, body, account_ids: selected, media_ids: media.map((x) => x.id),
       overrides: Object.fromEntries(Object.entries(overrides).filter(([k]) => selected.includes(Number(k))).map(([k, v]) => [String(k), v])),
-      link_url: link.trim(), campaign: campaign.trim(), mode: m,
+      link_url: link.trim(), campaign: campaign.trim(), facebook_short_link: fbShort, mode: m,
       scheduled_at: m === "at" || (m === "draft" && mode === "at") ? new Date(when).toISOString() : null,
     };
     setBusy(true);
@@ -269,8 +277,14 @@ export default function Composer({ editId, copyId, date }) {
           </div>
           {hasLink && (
             <div className="utm">
-              Lien court ajouté au post sur Facebook et X : <span className="mono">{shortLink}</span>, un par réseau, pour compter les clics.
+              Lien court ajouté au post sur X{fbShort ? " et Facebook" : ""} : <span className="mono">{shortLink}</span>, un par réseau, pour compter les clics.
               <br />Il redirige vers : <span className="mono">{withUtm(link.trim(), "RESEAU", campaign.trim()) || "adresse invalide"}</span>
+              {hasFacebook && (
+                <label className="check" style={{ marginTop: 8 }}>
+                  <input id="post-fb-short" type="checkbox" checked={fbShort} onChange={(e) => setFbShort(e.target.checked)} />
+                  <span>Facebook : utiliser aussi le lien court suivi (compte les clics). Sinon, le lien direct vers votre page est publié.</span>
+                </label>
+              )}
             </div>
           )}
 
@@ -303,7 +317,7 @@ export default function Composer({ editId, copyId, date }) {
                   <div className="pv-head"><Net platform={a.platform} />{NETWORKS[a.platform].label}
                     {bad ? <Chip tone="bad">À corriger</Chip> : <Chip tone="ok">Prêt</Chip>}</div>
                   <Preview account={a} text={t} media={media} project={project}
-                    link={hasLink && rules.rules[a.platform].link_in_text ? shortLink : ""} />
+                    link={linkFor(a.platform)} />
                 </div>
               );
             })}

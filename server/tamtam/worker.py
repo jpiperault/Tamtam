@@ -127,7 +127,10 @@ async def publish_target(app, target_id: int) -> None:
                            url=f"{s.public_url}/m/{m['token']}{m['ext']}", mime=m["mime"], size=m["size"])
                  for m in await cur.fetchall()]
         link = ""
-        if platforms.RULES[target["platform"]]["link_in_text"]:
+        if post["link_url"] and target["platform"] == "facebook" and not post["facebook_short_link"]:
+            # Par défaut sur Facebook : le lien direct (avec UTM), sans lien court ni comptage des clics.
+            link = with_utm(post["link_url"], "facebook", post["campaign"], post["id"])
+        elif platforms.RULES[target["platform"]]["link_in_text"]:
             link = await _make_link(conn, post, target, s.public_url)
         await conn.commit()
     text = target["body_override"] if target["body_override"] is not None else post["body"]

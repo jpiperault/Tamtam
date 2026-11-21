@@ -217,8 +217,8 @@ def test_publish_flow_and_links(client, project, accounts):
     post = ok(client.post("/api/v1/posts", json={
         "project_id": project["id"], "mode": "now", "body": "Nouvelle version !", "account_ids": ids,
         "media_ids": [img["id"]], "link_url": "https://app.example.test/dl?ref=a&utm_source=old",
-        "campaign": "lancement"}), 201)
-    assert post["status"] == "scheduled" and len(post["targets"]) == 4
+        "campaign": "lancement", "facebook_short_link": True}), 201)
+    assert post["status"] == "scheduled" and len(post["targets"]) == 4 and post["facebook_short_link"]
     run_worker(client)
     post = ok(client.get(f"/api/v1/posts/{post['id']}"))
     assert post["status"] == "done", post
@@ -238,6 +238,15 @@ def test_publish_flow_and_links(client, project, accounts):
     clicks = {r["platform"]: r["clicks"] for r in st["by_platform"]}
     assert clicks["x"] == 2 and clicks["facebook"] == 1
     assert st["top"][0]["id"] == post["id"]
+    # sans l'option, Facebook reçoit le lien direct : pas de lien court ; X garde le sien
+    p2 = ok(client.post("/api/v1/posts", json={
+        "project_id": project["id"], "mode": "now", "body": "Sans lien court", "account_ids": ids[1:3],
+        "link_url": "https://app.example.test/"}), 201)
+    assert p2["facebook_short_link"] is False
+    run_worker(client)
+    p2 = ok(client.get(f"/api/v1/posts/{p2['id']}"))
+    coded = {t["platform"]: t["link_code"] for t in p2["targets"]}
+    assert p2["status"] == "done" and not coded["facebook"] and coded["x"]
     # un post publié ne se modifie plus, et le média utilisé reste supprimable après publication
     r = client.put(f"/api/v1/posts/{post['id']}", json={"project_id": project["id"], "body": "x", "mode": "draft"})
     assert r.status_code == 409

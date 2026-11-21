@@ -1,5 +1,11 @@
 # Journal
 
+## 1.0.3 — 21 novembre 2026
+
+- Facebook : le lien court suivi (`/l/…`) devient une option par post, **décochée par défaut**. Sans elle, le post
+  Facebook montre le lien direct vers votre page (avec ses paramètres UTM) et ses clics ne sont pas comptés dans
+  Tamtam. X garde le lien court. Les posts déjà enregistrés passent au lien direct.
+
 ## 1.0.2 — 21 novembre 2026
 
 - Aide : nouvelle section « Configurer Meta (Facebook et Instagram) pas à pas », écrite pendant la première vraie

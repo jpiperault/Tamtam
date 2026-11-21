@@ -9,7 +9,8 @@ réseau ramène des visites.
 - **Rédaction** : texte commun + adaptation par réseau, compteurs, aperçus, médias (images converties en JPEG,
   vidéos MP4/MOV), publication immédiate ou programmée.
 - **Suivi** : état réseau par réseau, raison des échecs, nouvel essai automatique des erreurs passagères.
-- **Liens suivis** `/l/<code>` avec paramètres UTM par réseau, statistiques de clics.
+- **Liens suivis** `/l/<code>` avec paramètres UTM par réseau, statistiques de clics (sur Facebook : option par
+  post, lien direct par défaut).
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 
