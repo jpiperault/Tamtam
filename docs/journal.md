@@ -1,5 +1,19 @@
 # Journal
 
+## 1.1.0 — 21 novembre 2026
+
+- **Rédiger avec Claude** dans « Nouveau post » : à partir d'une consigne, d'un ton et de la présentation du
+  projet, Claude propose un texte commun et une version adaptée à chaque réseau choisi (longueur, hashtags, lien en
+  bio). On applique tout, ou seulement le texte commun ; rien n'est publié sans validation.
+- Administration : carte **Claude** (clé API chiffrée, modèle, limite de rédactions par jour, test de la clé, usage
+  du jour et du mois).
+- Projets : la description devient la **présentation** (3 000 caractères), utilisée par Claude.
+- Mode simulation sans clé : propositions factices pour essayer l'écran.
+
+Vérifié : tests d'API avec un faux client Claude (format de la demande, limite quotidienne, erreurs de clé et
+refus), écran essayé dans le navigateur en mode simulation. **Pas encore vérifié** : un vrai appel à Claude (pas de
+clé Anthropic sur le serveur de développement).
+
 ## 1.0.3 — 21 novembre 2026
 
 - Facebook : le lien court suivi (`/l/…`) devient une option par post, **décochée par défaut**. Sans elle, le post

@@ -42,6 +42,27 @@ Si un bouton « Connecter » est grisé, l'application de ce réseau n'est pas e
 - **Facebook : utiliser aussi le lien court suivi** (case sous le lien, visible quand un compte Facebook est choisi) :
   décochée par défaut, le post Facebook montre votre vrai lien. Cochez-la pour compter les clics Facebook dans Tamtam.
 
+### Rédiger avec Claude
+
+Le bouton **Rédiger avec Claude**, à droite des onglets de texte, demande une proposition à Claude (l'IA
+d'Anthropic) :
+
+1. Choisissez d'abord les comptes : Claude écrit une version pour chacun de leurs réseaux.
+2. Dites ce que vous voulez annoncer (« la version 2 sort aujourd'hui, avec le mode sombre »), choisissez un ton,
+   puis **Proposer un texte**. Si vous avez déjà écrit un premier jet, Claude l'améliore ou le réécrit.
+3. Relisez la proposition : un texte commun et une version par réseau (plus courte pour X, avec hashtags pour
+   Instagram et TikTok, renvoi vers le lien en bio quand le lien n'est pas cliquable).
+4. **Utiliser ces textes** remplit le texte commun et les onglets des réseaux ; **Texte commun seulement** ne
+   touche pas aux onglets. **Recommencer** permet de changer la consigne.
+
+Rien n'est publié tant que vous n'avez pas cliqué sur Publier ou Programmer : relisez toujours, Claude peut se
+tromper. Il s'appuie sur la **présentation du projet** (page Projets → Modifier) : plus elle est précise (ce que fait
+l'app, pour qui, où la télécharger, le ton de la marque), meilleurs sont les textes. Claude n'invente pas de
+fonctionnalité ni de chiffre ; s'il lui manque une information, il le signale au-dessus de la proposition.
+
+La consigne, le texte, la présentation du projet et la liste des réseaux sont envoyés à Anthropic ; les images et
+vidéos ne le sont pas.
+
 ### Ce que chaque réseau impose
 
 | Réseau | Texte | Médias | Lien |
@@ -160,6 +181,19 @@ Page et son compte Instagram, validez. De retour dans Tamtam, cochez les comptes
 Tant que Meta n'a pas validé l'app (« App Review »), elle reste en mode développement : seules les personnes qui
 ont un rôle sur l'app peuvent connecter leurs comptes. Cela suffit pour publier sur vos propres Pages. La
 validation n'est nécessaire que pour laisser d'autres personnes connecter leurs comptes.
+
+### Claude (rédaction)
+
+Pour activer « Rédiger avec Claude » : sur **console.anthropic.com**, créez un compte, ajoutez du crédit
+(**Billing**), puis **API Keys → Create Key**. Dans Tamtam → Administration → carte **Claude** : collez la clé
+(elle commence par `sk-ant-`), choisissez le modèle et le nombre maximal de rédactions par jour, **Enregistrer**,
+puis **Tester la clé**. La clé est chiffrée en base et ne réapparaît jamais.
+
+- **Modèle** : Claude Opus 5.5 donne les meilleurs textes (quelques centimes par rédaction) ; Sonnet 5.5 et
+  Haiku 5.5 sont plus rapides et moins chers.
+- **Rédactions par jour** : limite commune à tous les utilisateurs, pour maîtriser la facture. La carte affiche
+  l'usage du jour et du mois.
+- **Effacer la clé** désactive le bouton pour tout le monde.
 
 ### Utilisateurs
 

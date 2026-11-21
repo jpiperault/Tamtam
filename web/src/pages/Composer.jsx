@@ -53,9 +53,83 @@ function Preview({ account, text, media, link, project }) {
       return (<div className="mock">{img("tall")}<div className="txt"><b>@{handle}</b> {cut(text, 150)}</div></div>);
   }
 }
+const TONE_OPTIONS = [
+  { value: "", label: "Selon le projet" }, { value: "enthousiaste", label: "Enthousiaste" },
+  { value: "pro", label: "Pro" }, { value: "decontracte", label: "Décontracté" }, { value: "humour", label: "Humour" },
+];
+
+function ClaudeDialog({ projectId, project, platforms, currentText, kinds, hasLink, status, isAdmin, onApply, onClose }) {
+  const [instructions, setInstructions] = useState("");
+  const [tone, setTone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const ask = async () => {
+    setBusy(true); setError("");
+    try {
+      setResult(await api.post("/ai/draft", { project_id: projectId, instructions, current_text: currentText, tone,
+        platforms, media_kinds: kinds, has_link: hasLink }));
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+  if (!status?.enabled) {
+    return (
+      <Dialog title="Rédiger avec Claude" onClose={onClose}>
+        <p>Claude n'est pas encore configuré pour Tamtam : il faut une clé API Anthropic.</p>
+        {isAdmin ? <a className="btn primary" href="#/admin" onClick={onClose}>Configurer dans Administration</a>
+          : <p className="muted">Demandez à un administrateur de la saisir dans Administration.</p>}
+      </Dialog>
+    );
+  }
+  return (
+    <Dialog title="Rédiger avec Claude" onClose={onClose}>
+      {!result ? (
+        <div className="stack">
+          <label className="field">Que voulez-vous annoncer ?
+            <textarea id="ai-instructions" className="textarea" style={{ minHeight: 110 }} maxLength={4000} value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Ex. : la version 2 sort aujourd'hui, avec le mode sombre et l'export PDF. Public : les étudiants." />
+          </label>
+          {currentText.trim() && <p className="small muted" style={{ margin: 0 }}>Votre texte actuel sera pris en compte : Claude l'améliore ou le réécrit selon la consigne.</p>}
+          {!project.description?.trim() && <div className="notice warn small"><Icon name="alert" size={16} />Le projet n'a pas de présentation : Claude rédigera mieux si vous en ajoutez une (page Projets → Modifier).</div>}
+          <div className="field"><span className="label">Ton</span><Seg label="Ton" value={tone} onChange={setTone} options={TONE_OPTIONS} /></div>
+          <p className="small muted" style={{ margin: 0 }}>Réseaux : {platforms.map((p) => NETWORKS[p].label).join(", ")}.
+            {status.simulated ? " Mode simulation : texte factice, sans appel à Claude." : ` ${status.used_today}/${status.daily_limit} rédactions aujourd'hui.`}</p>
+          {error && <div className="notice danger"><Icon name="alert" size={16} />{error}</div>}
+          <div className="dialog-foot">
+            <button type="button" className="btn" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn primary" disabled={busy || (!instructions.trim() && !currentText.trim())} onClick={ask}>
+              <Icon name="sparkle" size={16} />{busy ? "Claude rédige… (jusqu'à 30 s)" : "Proposer un texte"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="stack">
+          {result.note && <div className="notice warn small"><Icon name="alert" size={16} />{result.note}</div>}
+          <div className="ai-out"><span className="label">Texte commun</span><div className="ai-text">{result.common}</div></div>
+          {platforms.filter((p) => result.versions[p]).map((p) => (
+            <div key={p} className="ai-out">
+              <span className="label"><Net platform={p} size="s" /> {NETWORKS[p].label}
+                {result.too_long.includes(p) && <Chip tone="bad">trop long</Chip>}</span>
+              <div className="ai-text">{result.versions[p]}</div>
+            </div>
+          ))}
+          <p className="small muted" style={{ margin: 0 }}>Relisez avant de publier : Claude peut se tromper. Vous pourrez tout modifier dans l'éditeur.</p>
+          <div className="dialog-foot">
+            <button type="button" className="btn" onClick={() => setResult(null)}><Icon name="refresh" size={16} />Recommencer</button>
+            <button type="button" className="btn" onClick={() => onApply(result, false)}>Texte commun seulement</button>
+            <button type="button" className="btn primary" onClick={() => onApply(result, true)}><Icon name="check" size={16} />Utiliser ces textes</button>
+          </div>
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 
 export default function Composer({ editId, copyId, date }) {
-  const { project, projectId, rules } = useApp();
+  const { project, projectId, rules, me } = useApp();
   const run = useRun();
   const toast = useToast();
   const [accounts, setAccounts] = useState(null);
@@ -64,6 +138,8 @@ export default function Composer({ editId, copyId, date }) {
   const [overrides, setOverrides] = useState({});
   const [tab, setTab] = useState("all");
   const [media, setMedia] = useState([]);
+  const [claude, setClaude] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
   const [link, setLink] = useState(project.url || "");
   const [campaign, setCampaign] = useState("");
   const [fbShort, setFbShort] = useState(false);
@@ -180,6 +256,20 @@ export default function Composer({ editId, copyId, date }) {
     if (r) window.location.hash = m === "draft" ? "#/?status=draft" : "#/";
   };
 
+  const openClaude = async () => {
+    setAiStatus(await api.get("/ai/status").catch(() => ({ enabled: false })));
+    setClaude(true);
+  };
+  const applyClaude = (r, perNetwork) => {
+    setBody(r.common);
+    const ov = {};
+    if (perNetwork) chosen.forEach((a) => { const v = r.versions[a.platform]; if (v && v !== r.common) ov[a.id] = v; });
+    setOverrides(ov);
+    setTab("all");
+    setClaude(false);
+    toast(perNetwork ? "Textes de Claude appliqués : relisez chaque onglet" : "Texte de Claude appliqué");
+  };
+
   const tabs = [["all", "Texte commun"], ...chosen.map((a) => [a.id, `${NETWORKS[a.platform].label}${overrides[a.id] != null ? " •" : ""}`])];
   const tabAccount = chosen.find((a) => a.id === tab);
   return (
@@ -215,10 +305,15 @@ export default function Composer({ editId, copyId, date }) {
           </div>
 
           <div className="field">
-            <div className="tabs" role="tablist">
-              {tabs.map(([k, l]) => (
-                <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
-              ))}
+            <div className="row" style={{ alignItems: "flex-end", gap: 8 }}>
+              <div className="tabs grow" role="tablist">
+                {tabs.map(([k, l]) => (
+                  <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
+                ))}
+              </div>
+              <button type="button" id="btn-claude" className="btn small" disabled={chosen.length === 0}
+                title={chosen.length === 0 ? "Choisissez d'abord un compte" : "Proposer un texte avec Claude"} onClick={openClaude}>
+                <Icon name="sparkle" size={14} />Rédiger avec Claude</button>
             </div>
             <textarea id="post-text" className="textarea" aria-label="Texte du post" value={tab === "all" ? body : textFor(tab)}
               onChange={(e) => editText(e.target.value)} placeholder="Qu'avez-vous à annoncer ?" />
@@ -323,6 +418,9 @@ export default function Composer({ editId, copyId, date }) {
             })}
         </div>
       </div>
+      {claude && <ClaudeDialog projectId={projectId} project={project} platforms={[...new Set(chosen.map((a) => a.platform))]}
+        currentText={body} kinds={kinds} hasLink={hasLink} status={aiStatus} isAdmin={me?.is_admin}
+        onApply={applyClaude} onClose={() => setClaude(false)} />}
       {picker && (
         <MediaPicker projectId={projectId} chosen={media} onClose={() => setPicker(false)}
           onPick={(m) => setMedia((c) => (c.some((x) => x.id === m.id) ? c.filter((x) => x.id !== m.id) : [...c, m]))} />

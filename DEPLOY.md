@@ -62,6 +62,14 @@ TikTok, les étapes et l'adresse de retour à copier. Points à prévoir :
 - **TikTok** : sans audit, les posts sont publiés en privé. Pour les carrousels photo, vérifier le domaine
   `tamtam.piperault.fr` dans le portail TikTok (« URL properties »).
 
+### Claude (rédaction des posts)
+
+Facultatif. La clé API Anthropic se saisit **dans l'interface** (Administration → carte Claude), chiffrée avec
+`TOKEN_KEY` comme les secrets des réseaux : aucune variable d'environnement à ajouter. Le conteneur doit pouvoir
+joindre `https://api.anthropic.com`. Sont envoyés à Anthropic : la consigne, le texte du post, le nom, l'adresse et
+la présentation du projet ; jamais les médias, les jetons ni les comptes. Chaque appel est noté dans la table
+`ai_calls` (utilisateur, projet, jetons) pour la limite quotidienne et le suivi du coût.
+
 ## 4. Mettre à jour
 
 ```bash

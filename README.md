@@ -11,6 +11,8 @@ réseau ramène des visites.
 - **Suivi** : état réseau par réseau, raison des échecs, nouvel essai automatique des erreurs passagères.
 - **Liens suivis** `/l/<code>` avec paramètres UTM par réseau, statistiques de clics (sur Facebook : option par
   post, lien direct par défaut).
+- **Rédaction avec Claude** : texte commun et version par réseau proposés à partir d'une consigne et de la
+  présentation du projet (clé API saisie dans Administration).
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 

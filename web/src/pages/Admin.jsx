@@ -61,6 +61,63 @@ function AppCard({ app, onSaved }) {
   );
 }
 
+function ClaudeCard() {
+  const run = useRun();
+  const toast = useToast();
+  const { data, error, reload } = useLoad(() => api.get("/admin/ai"), []);
+  const [key, setKey] = useState("");
+  const [model, setModel] = useState(null);
+  const [limit, setLimit] = useState(null);
+  const [testing, setTesting] = useState(false);
+  if (!data) return <Loading error={error} />;
+  const m = model ?? data.model;
+  const l = limit ?? data.daily_limit;
+  const save = async (e) => {
+    e.preventDefault();
+    const body = { model: m, daily_limit: Number(l) || 0 };
+    if (key.trim()) body.api_key = key.trim();
+    if (await run(() => api.put("/admin/ai", body), "Réglages de Claude enregistrés")) { setKey(""); reload(); }
+  };
+  const remove = async () => { if (await run(() => api.put("/admin/ai", { model: m, daily_limit: Number(l) || 0, api_key: "" }), "Clé effacée")) reload(); };
+  const test = async () => {
+    setTesting(true);
+    const r = await run(() => api.post("/admin/ai/test"));
+    setTesting(false);
+    if (r) toast(`Clé valide : ${r.model} a répondu`);
+  };
+  const models = data.models.some((x) => x.id === m) ? data.models : [...data.models, { id: m, label: m }];
+  return (
+    <form className="card stack" onSubmit={save} style={{ marginBottom: 20 }}>
+      <div className="row"><h2 className="grow">Claude</h2>
+        {data.has_key ? <Chip tone="ok">Configuré</Chip> : <Chip tone="warn">À configurer</Chip>}</div>
+      <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>
+        <li>Sur console.anthropic.com : créez un compte, ajoutez du crédit (Billing), puis API Keys → Create Key.</li>
+        <li>Collez la clé ci-dessous (elle commence par sk-ant-) et enregistrez, puis « Tester la clé ».</li>
+        <li>Chaque rédaction est facturée par Anthropic sur ce compte (quelques centimes au plus avec Opus).</li>
+      </ol>
+      <Field label={`Clé API${data.has_key ? " · enregistrée, laissez vide pour la garder" : ""}`}>
+        <input id="ai-key" className="input mono" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="new-password" placeholder="sk-ant-…" />
+      </Field>
+      <div className="grid2">
+        <Field label="Modèle">
+          <select id="ai-model" className="input" value={m} onChange={(e) => setModel(e.target.value)}>
+            {models.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Rédactions par jour au plus (tous utilisateurs)">
+          <input id="ai-limit" className="input" type="number" min={0} max={10000} value={l} onChange={(e) => setLimit(e.target.value)} />
+        </Field>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>Aujourd'hui : {data.used_today} rédaction{data.used_today > 1 ? "s" : ""}. Ce mois-ci : {data.month.calls} rédaction{data.month.calls > 1 ? "s" : ""}, {Number(data.month.input_tokens).toLocaleString("fr-FR")} jetons envoyés et {Number(data.month.output_tokens).toLocaleString("fr-FR")} reçus.</p>
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn primary" type="submit">Enregistrer</button>
+        {data.has_key && <button type="button" className="btn" disabled={testing} onClick={test}>{testing ? "Test en cours…" : "Tester la clé"}</button>}
+        {data.has_key && <button type="button" className="btn" onClick={remove}>Effacer la clé</button>}
+      </div>
+    </form>
+  );
+}
+
 function Users() {
   const run = useRun();
   const { me } = useApp();
@@ -135,6 +192,9 @@ export default function Admin() {
       <div className="accounts" style={{ marginBottom: 20 }}>
         {apps.data.apps.map((a) => <AppCard key={a.provider} app={a} onSaved={apps.reload} />)}
       </div>
+      <h2 style={{ margin: "8px 0 4px" }}>Rédaction avec Claude</h2>
+      <p className="muted" style={{ margin: "0 0 12px", maxWidth: "75ch" }}>Dans « Nouveau post », le bouton « Rédiger avec Claude » propose un texte commun et une version par réseau, à partir de votre consigne et de la présentation du projet. Rien n'est publié sans votre validation.</p>
+      <ClaudeCard />
       <Users />
     </>
   );

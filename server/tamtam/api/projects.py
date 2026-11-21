@@ -17,14 +17,14 @@ router = APIRouter()
 class ProjectIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     url: str = Field(default="", max_length=500)
-    description: str = Field(default="", max_length=1000)
+    description: str = Field(default="", max_length=3000)
     color: str = Field(default="#0E6E5C", pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class ProjectPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     url: str | None = Field(default=None, max_length=500)
-    description: str | None = Field(default=None, max_length=1000)
+    description: str | None = Field(default=None, max_length=3000)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     archived: bool | None = None
 

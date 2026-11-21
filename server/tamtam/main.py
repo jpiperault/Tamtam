@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, datadir, db, log, media, security, seed, worker
+from . import __version__, ai, datadir, db, log, media, security, seed, worker
 from .api import router
 from .config import ConfigError, Settings, load_settings
 
@@ -111,6 +111,10 @@ def create_app(settings: Settings) -> FastAPI:
                     await asyncio.wait_for(task, 1.5)
                 except (asyncio.TimeoutError, Exception):
                     task.cancel()
+            try:
+                await asyncio.wait_for(ai.close_clients(), 1.0)
+            except asyncio.TimeoutError:
+                pass
             try:
                 await asyncio.wait_for(pool.close(timeout=1.0), 1.5)
             except asyncio.TimeoutError:

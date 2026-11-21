@@ -21,7 +21,8 @@ function ProjectForm({ initial, onClose, onSaved }) {
         <Field label="Adresse principale (lien proposé par défaut dans les posts)">
           <input id="p-url" className="input" type="url" placeholder="https://" value={f.url} onChange={set("url")} />
         </Field>
-        <Field label="Description (pour vous)"><textarea id="p-desc" className="textarea" style={{ minHeight: 80 }} value={f.description} onChange={set("description")} /></Field>
+        <Field label="Présentation (sert aussi à Claude pour rédiger)"><textarea id="p-desc" className="textarea" style={{ minHeight: 110 }} maxLength={3000} value={f.description} onChange={set("description")}
+          placeholder="Ce que fait l'app, pour qui, ses points forts, où la télécharger, le ton de la marque…" /></Field>
         <Field label="Couleur"><input id="p-color" type="color" value={f.color} onChange={set("color")} style={{ width: 60, height: 34, border: 0, background: "none" }} /></Field>
         <div className="dialog-foot"><button type="button" className="btn" onClick={onClose}>Annuler</button><button className="btn primary" type="submit">Enregistrer</button></div>
       </form>
