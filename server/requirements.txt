@@ -11,3 +11,4 @@ httpx==0.28.1
 cryptography==49.0.0
 pillow==12.3.0
 anthropic==2.9.0
+av==19.0.2

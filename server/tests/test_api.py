@@ -438,3 +438,58 @@ def test_ai_errors(client, project, monkeypatch):
     # clé effacée : retour au mode simulation
     ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5", "daily_limit": 100}))
     assert ok(client.get("/api/v1/ai/status"))["simulated"]
+
+
+def _mp4_bytes(seconds=3) -> bytes:
+    import av
+    from PIL import Image
+
+    buf = io.BytesIO()
+    c = av.open(buf, "w", format="mp4")
+    s = c.add_stream("mpeg4", rate=10)
+    s.width, s.height, s.pix_fmt = 320, 240, "yuv420p"
+    for i in range(seconds * 10):
+        frame = av.VideoFrame.from_image(Image.new("RGB", (320, 240), (i * 8, 100, 200))).reformat(format="yuv420p")
+        for p in s.encode(frame):
+            c.mux(p)
+    for p in s.encode():
+        c.mux(p)
+    c.close()
+    return buf.getvalue()
+
+
+def test_ai_sees_media(client, project, monkeypatch):
+    import base64 as b64
+    from tamtam import ai
+
+    img = ok(client.post(f"/api/v1/projects/{project['id']}/media",
+                         files={"file": ("p.png", png_bytes((10, 120, 90, 255)), "image/png")}), 201)
+    vid = ok(client.post(f"/api/v1/projects/{project['id']}/media",
+                         files={"file": ("v.mp4", _mp4_bytes(), "video/mp4")}), 201)
+    assert vid["kind"] == "video"
+    fake = _FakeClaude([_claude_message({"common": "Vu !", "note": "", "versions": [{"platform": "x", "text": "Vu"}]})])
+    monkeypatch.setattr(ai, "get_client", lambda key: fake)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "sk-ant-test-123", "model": "claude-opus-5-5", "daily_limit": 100}))
+    r = ok(client.post("/api/v1/ai/draft", json={"project_id": project["id"], "instructions": "Montre la vidéo",
+                                                  "platforms": ["x"], "media_ids": [img["id"], vid["id"], 999999]}))
+    assert r["common"] == "Vu !" and r["note"] == ""
+    content = fake.calls[0]["messages"][0]["content"]
+    images = [b for b in content if b["type"] == "image"]
+    labels = [b["text"] for b in content if b["type"] == "text"]
+    assert len(images) == 1 + ai.VIDEO_FRAMES
+    assert labels[0] == "Média 1 : image" and labels[1].startswith("Média 2 : vidéo de 3 s, 4 image(s)")
+    assert "<consigne>" in labels[-1]
+    from PIL import Image
+    first = Image.open(io.BytesIO(b64.b64decode(images[0]["source"]["data"])))
+    assert first.format == "JPEG" and max(first.size) <= ai.EDGE
+    # un média illisible ne bloque pas : il est signalé dans la note
+    bad = ok(client.post(f"/api/v1/projects/{project['id']}/media",
+                         files={"file": ("v2.mp4", _mp4_bytes(1), "video/mp4")}), 201)
+    bad_path = client.app_ref.state.settings.data_dir + "/media/" + bad["url"].rsplit("/", 1)[-1]
+    with open(bad_path, "wb") as f:
+        f.write(b"\0\0\0\x18ftypmp42 pas une vraie video")
+    fake.outcomes.append(_claude_message({"common": "Ok", "note": "", "versions": [{"platform": "x", "text": "Ok"}]}))
+    r = ok(client.post("/api/v1/ai/draft", json={"project_id": project["id"], "instructions": "x",
+                                                  "platforms": ["x"], "media_ids": [bad["id"]]}))
+    assert "n'a pas pu être montré" in r["note"]
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5", "daily_limit": 100}))

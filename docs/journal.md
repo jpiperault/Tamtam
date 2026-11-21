@@ -1,5 +1,15 @@
 # Journal
 
+## 1.2.0 — 21 novembre 2026
+
+- **Claude regarde les médias** du post avant de rédiger : les images, et pour une vidéo 4 images fixes réparties
+  sur sa durée (extraites avec PyAV). Case « Montrer les médias à Claude », cochée par défaut ; 8 images au plus par
+  demande ; un média illisible est signalé sans bloquer la rédaction.
+- Consigne de Claude : coller à ce que montrent les médias, ne rien inventer de ce qui n'est pas visible.
+
+Vérifié : test d'API avec un faux client Claude (une image + une vraie vidéo MP4 générée : 5 images envoyées,
+JPEG de 1 568 px au plus ; vidéo illisible signalée). **Pas encore vérifié** : un vrai appel à Claude avec images.
+
 ## 1.1.1 — 21 novembre 2026
 
 - Rédaction : le **lien à promouvoir** n'est plus prérempli avec l'adresse du projet ; il est facultatif, et un

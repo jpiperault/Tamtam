@@ -58,8 +58,9 @@ const TONE_OPTIONS = [
   { value: "pro", label: "Pro" }, { value: "decontracte", label: "Décontracté" }, { value: "humour", label: "Humour" },
 ];
 
-function ClaudeDialog({ projectId, project, platforms, currentText, kinds, hasLink, status, isAdmin, onApply, onClose }) {
+function ClaudeDialog({ projectId, project, platforms, currentText, kinds, mediaIds, hasLink, status, isAdmin, onApply, onClose }) {
   const [instructions, setInstructions] = useState("");
+  const [showMedia, setShowMedia] = useState(true);
   const [tone, setTone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -68,7 +69,7 @@ function ClaudeDialog({ projectId, project, platforms, currentText, kinds, hasLi
     setBusy(true); setError("");
     try {
       setResult(await api.post("/ai/draft", { project_id: projectId, instructions, current_text: currentText, tone,
-        platforms, media_kinds: kinds, has_link: hasLink }));
+        platforms, media_kinds: kinds, has_link: hasLink, media_ids: showMedia ? mediaIds : [] }));
     } catch (e) {
       setError(e.message);
     }
@@ -94,6 +95,12 @@ function ClaudeDialog({ projectId, project, platforms, currentText, kinds, hasLi
           </label>
           {currentText.trim() && <p className="small muted" style={{ margin: 0 }}>Votre texte actuel sera pris en compte : Claude l'améliore ou le réécrit selon la consigne.</p>}
           {!project.description?.trim() && <div className="notice warn small"><Icon name="alert" size={16} />Le projet n'a pas de présentation : Claude rédigera mieux si vous en ajoutez une (page Projets → Modifier).</div>}
+          {mediaIds.length > 0 && (
+            <label className="check small">
+              <input id="ai-show-media" type="checkbox" checked={showMedia} onChange={(e) => setShowMedia(e.target.checked)} />
+              <span>Montrer {mediaIds.length > 1 ? `les ${mediaIds.length} médias` : (kinds[0] === "video" ? "la vidéo" : "l'image")} à Claude pour que le texte colle à ce qu'on y voit{kinds.includes("video") ? " (quelques images extraites de la vidéo, sans le son)" : ""}.</span>
+            </label>
+          )}
           <div className="field"><span className="label">Ton</span><Seg label="Ton" value={tone} onChange={setTone} options={TONE_OPTIONS} /></div>
           <p className="small muted" style={{ margin: 0 }}>Réseaux : {platforms.map((p) => NETWORKS[p].label).join(", ")}.
             {status.simulated ? " Mode simulation : texte factice, sans appel à Claude." : ` ${status.used_today}/${status.daily_limit} rédactions aujourd'hui.`}</p>
@@ -101,7 +108,7 @@ function ClaudeDialog({ projectId, project, platforms, currentText, kinds, hasLi
           <div className="dialog-foot">
             <button type="button" className="btn" onClick={onClose}>Annuler</button>
             <button type="button" className="btn primary" disabled={busy || (!instructions.trim() && !currentText.trim())} onClick={ask}>
-              <Icon name="sparkle" size={16} />{busy ? "Claude rédige… (jusqu'à 30 s)" : "Proposer un texte"}</button>
+              <Icon name="sparkle" size={16} />{busy ? "Claude rédige… (jusqu'à une minute)" : "Proposer un texte"}</button>
           </div>
         </div>
       ) : (
@@ -423,7 +430,7 @@ export default function Composer({ editId, copyId, date }) {
         </div>
       </div>
       {claude && <ClaudeDialog projectId={projectId} project={project} platforms={[...new Set(chosen.map((a) => a.platform))]}
-        currentText={body} kinds={kinds} hasLink={hasLink} status={aiStatus} isAdmin={me?.is_admin}
+        currentText={body} kinds={kinds} mediaIds={media.map((m) => m.id)} hasLink={hasLink} status={aiStatus} isAdmin={me?.is_admin}
         onApply={applyClaude} onClose={() => setClaude(false)} />}
       {picker && (
         <MediaPicker projectId={projectId} chosen={media} onClose={() => setPicker(false)}

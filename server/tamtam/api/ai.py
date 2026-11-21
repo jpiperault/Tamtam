@@ -4,9 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .. import ai, log
+from .. import ai, log, media as media_mod
 from ..platforms import PLATFORMS
-from .common import admin_user, current_user, fetchone, get_conn, project_or_404
+from .common import admin_user, current_user, fetchall, fetchone, get_conn, project_or_404
 
 router = APIRouter()
 _log = log.get("api.ai")
@@ -44,6 +44,7 @@ class DraftIn(BaseModel):
     platforms: list[str] = Field(default_factory=list, max_length=4)
     media_kinds: list[str] = Field(default_factory=list, max_length=35)
     has_link: bool = False
+    media_ids: list[int] = Field(default_factory=list, max_length=35)   # médias montrés à Claude
 
 
 @router.post("/ai/draft")
@@ -55,12 +56,21 @@ async def make_draft(body: DraftIn, request: Request, user=Depends(current_user)
     if not body.instructions.strip() and not body.current_text.strip():
         raise HTTPException(422, "dites à Claude ce que vous voulez annoncer, ou écrivez un premier jet à améliorer")
     kinds = [k for k in body.media_kinds if k in ("image", "video")]
+    shown = []
+    if body.media_ids:
+        rows = {r["id"]: r for r in await fetchall(conn, "SELECT id, kind, token, ext FROM media WHERE project_id=%s "
+                                                          "AND id = ANY(%s)", (project["id"], body.media_ids))}
+        data_dir = request.app.state.settings.data_dir
+        shown = [{"kind": rows[i]["kind"], "path": str(media_mod.path_for(data_dir, rows[i]["token"], rows[i]["ext"]))}
+                 for i in dict.fromkeys(body.media_ids) if i in rows]
     s = await _settings(conn)
     if not s["api_key_enc"]:
         if not request.app.state.settings.simulation:
             raise HTTPException(409, "Claude n'est pas configuré : un administrateur doit saisir la clé API dans "
                                      "Administration")
         d = ai.simulated_draft(project, body.instructions, body.current_text, platforms)
+        if shown:
+            d.note += f" {len(shown)} média(s) auraient été montrés à Claude."
     else:
         if await _used_today(conn) >= s["daily_limit"]:
             raise HTTPException(429, f"limite de {s['daily_limit']} rédactions par jour atteinte (réglable dans "
@@ -69,7 +79,7 @@ async def make_draft(body: DraftIn, request: Request, user=Depends(current_user)
         key = request.app.state.vault.open(s["api_key_enc"])
         try:
             d = await ai.draft(key, s["model"], project, body.instructions, body.current_text, body.tone, platforms,
-                               body.has_link, kinds)
+                               body.has_link, kinds, shown)
         except ai.AIError as exc:
             await conn.execute("INSERT INTO ai_calls(user_id, project_id, model, ok) VALUES (%s,%s,%s,false)",
                                (user["id"], project["id"], s["model"]))

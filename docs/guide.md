@@ -62,8 +62,13 @@ tromper. Il s'appuie sur la **présentation du projet** (page Projets → Modifi
 l'app, pour qui, où la télécharger, le ton de la marque), meilleurs sont les textes. Claude n'invente pas de
 fonctionnalité ni de chiffre ; s'il lui manque une information, il le signale au-dessus de la proposition.
 
-La consigne, le texte, la présentation du projet et la liste des réseaux sont envoyés à Anthropic ; les images et
-vidéos ne le sont pas.
+**Claude regarde vos médias.** Si le post a des images ou une vidéo, la case « Montrer … à Claude » (cochée par
+défaut) lui envoie les images, et pour une vidéo quatre images fixes réparties sur sa durée (Claude ne voit pas la
+vidéo elle-même et n'entend pas le son). Il écrit alors un texte qui parle de ce qu'on y voit. Ajoutez donc vos
+médias **avant** de cliquer sur « Rédiger avec Claude ». Au-delà de 8 images, les suivantes ne lui sont pas montrées.
+
+Sont envoyés à Anthropic : la consigne, le texte, la présentation du projet, la liste des réseaux et, si la case
+est cochée, les images (réduites à 1 568 px) ou les images extraites de la vidéo.
 
 ### Ce que chaque réseau impose
 
