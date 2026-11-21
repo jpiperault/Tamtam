@@ -1,5 +1,12 @@
 # Journal
 
+## 1.0.1 — 21 novembre 2026
+
+- Correction : « Enregistrer » dans Administration → Applications des réseaux et l'enregistrement d'un post modifié
+  échouaient (« Z.put is not a function »).
+- Administration : étapes de création de l'application Meta mises à jour pour l'interface actuelle de Meta
+  (cas d'utilisation au lieu des « types d'app » et « produits »).
+
 ## 1.0.0 — 21 novembre 2026
 
 Première version, construite à partir de la maquette validée ([maquette.html](maquette.html)). Appelée « Relais »

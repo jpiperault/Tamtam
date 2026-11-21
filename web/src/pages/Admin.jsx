@@ -4,10 +4,11 @@ import { useApp } from "../App.jsx";
 import { Chip, Dialog, Field, Icon, Loading, useLoad, useRun, useToast } from "../ui.jsx";
 
 const GUIDES = {
-  meta: ["Créez une app de type « Entreprise » sur developers.facebook.com.",
-    "Ajoutez les produits « Facebook Login for Business » et « Instagram » (API Graph).",
-    "Collez l'adresse de retour ci-dessous dans les URI de redirection OAuth valides.",
-    "Demandez l'accès avancé aux autorisations pages_manage_posts, instagram_content_publish… (App Review) pour publier sur des comptes qui ne sont pas administrateurs de l'app."],
+  meta: ["Sur developers.facebook.com → Mes apps → Créer une app : nom et e-mail, puis cochez les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les messages et le contenu sur Instagram » (filtre « Gestion de contenu »).",
+    "Dans chaque cas d'utilisation (bouton « Personnaliser ») : ajoutez pages_manage_posts côté Page et, côté Instagram, choisissez la configuration « avec Facebook Login » et ajoutez instagram_content_publish.",
+    "Menu de gauche → Facebook Login for Business → Paramètres : collez l'adresse ci-dessous dans « URI de redirection OAuth valides » et enregistrez.",
+    "Paramètres de l'app → Général : copiez l'identifiant de l'app et la clé secrète (bouton « Afficher », Facebook redemande votre mot de passe).",
+    "Tant que l'app n'est pas validée par Meta (App Review), seules les personnes qui ont un rôle sur l'app (vous) peuvent connecter leurs comptes : cela suffit pour vos propres Pages."],
   x: ["Créez un projet et une app sur developer.x.com.",
     "Dans « User authentication settings » : OAuth 2.0, type « Web App, Automated App or Bot », droits Read and write.",
     "Collez l'adresse de retour ci-dessous comme Callback URI, puis copiez le Client ID et le Client Secret OAuth 2.0.",

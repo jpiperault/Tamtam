@@ -50,7 +50,8 @@ nomme ; Hangar remet alors la version précédente.
 Elles se configurent **dans l'interface** : Administration → Applications des réseaux. La page donne, pour Meta, X et
 TikTok, les étapes et l'adresse de retour à copier. Points à prévoir :
 
-- **Meta** (Facebook + Instagram) : app de type Entreprise. Tant que l'App Review n'est pas validée, seuls les
+- **Meta** (Facebook + Instagram) : app créée avec les cas d'utilisation « Gérer tout sur votre Page » et « Gérer les messages et le
+  contenu sur Instagram » (configuration avec Facebook Login). Tant que l'App Review n'est pas validée, seuls les
   administrateurs / testeurs de l'app peuvent connecter leurs comptes (ce qui suffit pour vos propres Pages).
 - **X** : l'écriture par API dépend de l'offre d'accès de votre compte développeur (payante ou limitée).
 - **TikTok** : sans audit, les posts sont publiés en privé. Pour les carrousels photo, vérifier le domaine
