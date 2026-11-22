@@ -63,3 +63,21 @@ export function toLocalInput(d) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+// Recadrage appliqué à la publication (même règle que server/tamtam/crop.py).
+const CROP_TARGETS = { instagram: 4 / 5, tiktok: 9 / 16, x: 16 / 9 };
+export function cropRatio(platform, w, h, auto) {
+  if (!w || !h) return null;
+  const r = w / h;
+  if (auto && CROP_TARGETS[platform]) {
+    const t = CROP_TARGETS[platform];
+    return Math.abs(r - t) / t > 0.01 ? t : null;
+  }
+  if (platform === "instagram") {
+    if (r < 0.8 * 0.99) return 0.8;
+    if (r > 1.91 * 1.01) return 1.91;
+  }
+  return null;
+}
+
+export const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];

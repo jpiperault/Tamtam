@@ -8,7 +8,9 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from .. import media as media_mod
+from psycopg.types.json import Jsonb
+
+from .. import media as media_mod, slots as slots_mod
 from .common import current_user, fetchall, fetchone, get_conn, project_or_404, update_row
 
 router = APIRouter()
@@ -27,6 +29,7 @@ class ProjectPatch(BaseModel):
     description: str | None = Field(default=None, max_length=3000)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     archived: bool | None = None
+    slots: list[dict] | None = Field(default=None, max_length=50)   # [{day: 0-6, time: "HH:MM"}]
 
 
 def _check_url(url: str | None) -> None:
@@ -62,9 +65,27 @@ async def patch_project(project_id: int, body: ProjectPatch, user=Depends(curren
         data["name"] = data["name"].strip()
         if await fetchone(conn, "SELECT 1 FROM projects WHERE lower(name)=lower(%s) AND id<>%s", (data["name"], project_id)):
             raise HTTPException(409, "un projet porte déjà ce nom")
-    await update_row(conn, "projects", project_id, data, {"name", "url", "description", "color", "archived"})
+    if "slots" in data:
+        try:
+            data["slots"] = Jsonb(slots_mod.clean(data["slots"] or []))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    await update_row(conn, "projects", project_id, data, {"name", "url", "description", "color", "archived", "slots"})
     await conn.commit()
     return await project_or_404(conn, project_id)
+
+
+@router.get("/projects/{project_id}/slots/next")
+async def next_slots(project_id: int, request: Request, count: int = 1, user=Depends(current_user),
+                     conn=Depends(get_conn)):
+    """Prochains créneaux libres du projet (pour l'écran de rédaction et les campagnes)."""
+    from datetime import datetime, timezone
+
+    project = await project_or_404(conn, project_id)
+    found = slots_mod.upcoming(project["slots"], request.app.state.settings.timezone,
+                               await slots_mod.taken(conn, project_id), datetime.now(timezone.utc),
+                               max(1, min(count, 30)))
+    return {"slots": project["slots"], "next": found}
 
 
 # --- Médias

@@ -13,6 +13,8 @@ réseau ramène des visites.
   post, lien direct par défaut).
 - **Rédaction avec Claude** : texte commun et version par réseau proposés à partir d'une consigne et de la
   présentation du projet (clé API saisie dans Administration).
+- **Campagne de lancement** : Claude rédige une série de posts à relire puis programmer ; **créneaux de
+  publication** par projet ; **recyclage** des posts qui ont marché ; **recadrage** des images par réseau.
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 

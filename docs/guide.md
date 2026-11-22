@@ -43,6 +43,27 @@ Si un bouton « Connecter » est grisé, l'application de ce réseau n'est pas e
 - **Campagne** : un mot court (par exemple `lancement-v2`) qui sert à regrouper les visites dans vos statistiques.
 - **Facebook : utiliser aussi le lien court suivi** (case sous le lien, visible quand un compte Facebook est choisi) :
   décochée par défaut, le post Facebook montre votre vrai lien. Cochez-la pour compter les clics Facebook dans Tamtam.
+- **Adapter le cadrage des images à chaque réseau** (case sous les médias, décochée par défaut) : au moment de
+  publier, Tamtam recadre chaque image au centre au format conseillé du réseau : Instagram 4:5 (portrait),
+  TikTok 9:16 (plein écran), X 16:9 (paysage). Facebook garde l'image d'origine. Votre fichier n'est pas modifié ;
+  l'aperçu à droite montre le résultat. Même sans la case, une image qu'Instagram refuserait (plus haute que 4:5 ou
+  plus large que 1,91:1) est recadrée automatiquement pour Instagram.
+- **Quand** : « Maintenant », « Programmer » (date et heure au choix) ou **« Prochain créneau »** : le post prend le
+  premier créneau libre du projet (voir ci-dessous), affiché sous les boutons.
+
+### Créneaux de publication
+
+Dans **Projets → Créneaux**, choisissez les jours et heures où vos posts partent, par exemple « mardi 18:30, jeudi
+12:00 ». Ensuite, dans « Nouveau post », « Prochain créneau » place le post au premier créneau où aucun autre post du
+projet n'est prévu. Pratique pour garder un rythme régulier sans chercher une date à chaque fois. Les heures sont
+celles du serveur (heure de Paris par défaut).
+
+### Recycler un post qui a marché
+
+Un post publié peut resservir. Le bouton **Recycler** (dans Publications sur un post publié, et dans Statistiques
+à côté des posts qui ont ramené le plus de visites) ouvre un nouveau post avec les mêmes comptes, médias et lien, et
+demande à Claude une **nouvelle version** du texte : même message, autre accroche, pour ne pas paraître répété.
+Vous relisez, ajustez, puis publiez ou programmez comme d'habitude. Les réglages TikTok sont à choisir à nouveau.
 
 ### Rédiger avec Claude
 
@@ -99,6 +120,23 @@ afficher le post sur le profil.
 
 Tant que l'application Tamtam n'a pas passé l'audit de TikTok, les posts restent privés (« Moi uniquement ») et le
 compte TikTok doit lui-même être en mode privé au moment de publier.
+
+## Campagne de lancement
+
+Page **Campagne** : décrivez ce que vous lancez (une nouvelle version, une appli, une offre), choisissez le nombre de
+posts (2 à 10), le ton et les comptes. Claude rédige une **série** de posts qui se suivent (par exemple teaser,
+annonce, un bénéfice par post, rappel), chacun avec son texte commun et ses versions par réseau. Rien n'est publié à
+cette étape.
+
+1. Relisez chaque post, corrigez le texte, décochez « Garder » pour écarter un post.
+2. Donnez un nom de campagne (pour les statistiques) et choisissez le rythme : **créneaux du projet** (chaque post
+   prend le créneau libre suivant) ou **intervalle régulier** (premier post à la date choisie, puis tous les N jours).
+3. « Programmer » crée les posts. Ceux qui peuvent partir tels quels sont programmés. Les autres sont créés en
+   **brouillons datés** : c'est le cas dès qu'Instagram ou TikTok est choisi (il faut une image ou une vidéo, et
+   pour TikTok les réglages du post). Ouvrez-les depuis Publications → Brouillons, ajoutez le média, puis
+   programmez-les.
+
+Une campagne compte pour une seule rédaction dans la limite quotidienne de Claude.
 
 ## Calendrier
 

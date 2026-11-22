@@ -34,7 +34,8 @@ export function PostRow({ post, onChange }) {
           {post.media[0] && (post.media[0].kind === "video"
             ? <video src={post.media[0].url} muted preload="metadata" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, flex: "none" }} />
             : <img src={post.media[0].url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, flex: "none" }} />)}
-          <div className="post-body grow">{post.body || <span className="muted">(texte adapté par réseau)</span>}</div>
+          <div className="post-body grow">{post.body || <span className="muted">(texte adapté par réseau)</span>}
+            {post.campaign && <div className="small muted">Campagne : {post.campaign}</div>}</div>
         </div>
         <div className="row" style={{ gap: 14 }}>
           {post.targets.map((t) => {
@@ -57,6 +58,7 @@ export function PostRow({ post, onChange }) {
       <div className="row" style={{ justifyContent: "flex-end" }}>
         {editable && <a className="btn small" href={`#/nouveau/${post.id}`}><Icon name="edit" size={14} />Modifier</a>}
         {(post.status === "failed" || post.status === "partial") && <button type="button" className="btn small" onClick={retry}><Icon name="refresh" size={14} />Réessayer</button>}
+        {(post.status === "done" || post.status === "partial") && <a className="btn small" href={`#/nouveau?recycle=${post.id}`} title="Republier ce post dans une nouvelle version rédigée par Claude"><Icon name="sparkle" size={14} />Recycler</a>}
         <a className="btn small" href={`#/nouveau?copy=${post.id}`} title="Créer un nouveau post à partir de celui-ci"><Icon name="copy" size={14} />Dupliquer</a>
         {confirm ? (
           <>

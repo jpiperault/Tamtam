@@ -95,6 +95,52 @@ async def make_draft(body: DraftIn, request: Request, user=Depends(current_user)
             "too_long": [p for p, t in d.versions.items() if ai.too_long(p, t, body.has_link)]}
 
 
+class CampaignIn(BaseModel):
+    project_id: int
+    brief: str = Field(min_length=1, max_length=4000)
+    count: int = Field(default=5, ge=2, le=10)
+    tone: str = Field(default="", pattern="^(|enthousiaste|pro|decontracte|humour)$")
+    platforms: list[str] = Field(default_factory=list, max_length=4)
+    has_link: bool = False
+
+
+@router.post("/ai/campaign")
+async def make_campaign(body: CampaignIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    """Série de posts à partir d'une consigne. Rien n'est créé : l'écran Campagne les montre pour relecture."""
+    project = await project_or_404(conn, body.project_id)
+    platforms = [p for p in PLATFORMS if p in body.platforms]
+    if not platforms:
+        raise HTTPException(422, "choisissez au moins un compte avant de demander à Claude")
+    s = await _settings(conn)
+    if not s["api_key_enc"]:
+        if not request.app.state.settings.simulation:
+            raise HTTPException(409, "Claude n'est pas configuré : un administrateur doit saisir la clé API dans "
+                                     "Administration")
+        c = ai.simulated_campaign(project, body.brief, body.count, platforms)
+    else:
+        if await _used_today(conn) >= s["daily_limit"]:
+            raise HTTPException(429, f"limite de {s['daily_limit']} rédactions par jour atteinte (réglable dans "
+                                     "Administration)")
+        await conn.commit()
+        key = request.app.state.vault.open(s["api_key_enc"])
+        try:
+            c = await ai.campaign(key, s["model"], project, body.brief, body.count, body.tone, platforms, body.has_link)
+        except ai.AIError as exc:
+            await conn.execute("INSERT INTO ai_calls(user_id, project_id, model, ok) VALUES (%s,%s,%s,false)",
+                               (user["id"], project["id"], s["model"]))
+            await conn.commit()
+            raise HTTPException(502, str(exc)) from exc
+        await conn.execute("INSERT INTO ai_calls(user_id, project_id, model, input_tokens, output_tokens) "
+                           "VALUES (%s,%s,%s,%s,%s)", (user["id"], project["id"], c.model, c.input_tokens,
+                                                         c.output_tokens))
+        await conn.commit()
+        _log.info("campagne Claude : projet %s, %s posts, %s+%s jetons", project["id"], len(c.posts),
+                  c.input_tokens, c.output_tokens)
+    for p in c.posts:
+        p["too_long"] = [n for n, t in p["versions"].items() if ai.too_long(n, t, body.has_link)]
+    return {"posts": c.posts, "note": c.note, "model": c.model}
+
+
 @router.get("/admin/ai")
 async def get_admin(user=Depends(admin_user), conn=Depends(get_conn)):
     s = await _settings(conn)

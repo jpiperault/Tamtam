@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { useApp } from "../App.jsx";
-import { problems, textLength, toLocalInput, warnings, withUtm } from "../rules.js";
+import { cropRatio, fmtDateTime, problems, textLength, toLocalInput, warnings, withUtm } from "../rules.js";
 import { Chip, Dialog, Icon, Loading, NETWORKS, Net, ORDER, Seg, useRun, useToast } from "../ui.jsx";
 
 const byNet = (a, b) => ORDER.indexOf(a.platform) - ORDER.indexOf(b.platform);
@@ -28,13 +28,14 @@ function MediaPicker({ projectId, chosen, onPick, onClose }) {
   );
 }
 
-function Preview({ account, text, media, link, project }) {
+function Preview({ account, text, media, link, project, autoCrop }) {
   const name = account.name || project.name;
   const handle = account.handle || name;
   const first = media[0];
+  const ratio = first?.kind === "image" ? cropRatio(account.platform, first.width, first.height, autoCrop) : null;
   const img = (cls) => first && (first.kind === "video"
     ? <video className={`media ${cls}`} src={first.url} muted preload="metadata" />
-    : <img className={`media ${cls}`} src={first.url} alt="" />);
+    : <img className={`media ${cls}`} src={first.url} alt="" style={ratio ? { aspectRatio: String(ratio), width: "100%", maxHeight: "none" } : undefined} />);
   const cut = (t, n) => (t.length > n ? <>{t.slice(0, n)}<span className="more">… plus</span></> : t);
   const av = account.avatar_url ? <img className="av" src={account.avatar_url} alt="" /> : <div className="av" />;
   switch (account.platform) {
@@ -138,8 +139,8 @@ const TONE_OPTIONS = [
   { value: "pro", label: "Pro" }, { value: "decontracte", label: "Décontracté" }, { value: "humour", label: "Humour" },
 ];
 
-function ClaudeDialog({ projectId, project, platforms, currentText, kinds, mediaIds, hasLink, status, isAdmin, onApply, onClose }) {
-  const [instructions, setInstructions] = useState("");
+function ClaudeDialog({ projectId, project, platforms, currentText, kinds, mediaIds, hasLink, status, isAdmin, onApply, onClose, preset = "" }) {
+  const [instructions, setInstructions] = useState(preset);
   const [showMedia, setShowMedia] = useState(true);
   const [tone, setTone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -215,7 +216,9 @@ function ClaudeDialog({ projectId, project, platforms, currentText, kinds, media
 }
 
 
-export default function Composer({ editId, copyId, date }) {
+const RECYCLE_INSTRUCTIONS = "Ce post a déjà été publié et a bien marché. Propose une nouvelle version : même message et mêmes faits, mais une autre accroche, une autre formulation et un autre angle, pour qu'il ne paraisse pas répété.";
+
+export default function Composer({ editId, copyId, recycleId, date }) {
   const { project, projectId, rules, me } = useApp();
   const run = useRun();
   const toast = useToast();
@@ -232,6 +235,9 @@ export default function Composer({ editId, copyId, date }) {
   const [link, setLink] = useState("");
   const [campaign, setCampaign] = useState("");
   const [fbShort, setFbShort] = useState(false);
+  const [autoCrop, setAutoCrop] = useState(false);
+  const [nextSlot, setNextSlot] = useState(undefined);
+  const [presetAsk, setPresetAsk] = useState("");
   const [mode, setMode] = useState(date ? "at" : "now");
   const [when, setWhen] = useState(() => {
     if (date) return `${date}T10:00`;
@@ -253,7 +259,7 @@ export default function Composer({ editId, copyId, date }) {
       if (cancel) return;
       accs.sort(byNet);
       setAccounts(accs);
-      const src = editId || copyId;
+      const src = editId || copyId || recycleId;
       if (src) {
         const p = await api.get(`/posts/${src}`).catch((e) => { toast(e.message, true); return null; });
         if (!p || cancel) return;
@@ -261,6 +267,7 @@ export default function Composer({ editId, copyId, date }) {
         setLink(p.link_url);
         setCampaign(p.campaign);
         setFbShort(Boolean(p.facebook_short_link));
+        setAutoCrop(Boolean(p.auto_crop));
         setMedia(p.media);
         const ids = p.targets.map((t) => t.social_account_id).filter(Boolean);
         setSelected(ids);
@@ -269,13 +276,21 @@ export default function Composer({ editId, copyId, date }) {
         setOverrides(ov);
         const tt = {};
         p.targets.forEach((t) => { if (t.platform === "tiktok" && t.social_account_id) tt[t.social_account_id] = { ...TT_EMPTY, ...(t.options || {}) }; });
-        setTtOpts(tt);
+        // Réglages TikTok repris seulement pour modifier le même post (TikTok interdit de les pré-remplir).
+        setTtOpts(editId ? tt : {});
         if (editId) {
           if (p.status === "draft") setMode(p.scheduled_at ? "at" : "draft");
           else setMode("at");
           if (p.scheduled_at) setWhen(toLocalInput(new Date(p.scheduled_at)));
         }
         setLoadedProject(p.project_id);
+        if (recycleId) {
+          // Recyclage : nouvelle version d'un post publié. Claude propose une autre formulation.
+          setOverrides({});
+          setPresetAsk(RECYCLE_INSTRUCTIONS);
+          setAiStatus(await api.get("/ai/status").catch(() => ({ enabled: false })));
+          if (!cancel) setClaude(true);
+        }
       } else {
         setSelected(accs.filter((a) => a.status === "ok").map((a) => a.id));
         setLoadedProject(projectId);
@@ -286,7 +301,12 @@ export default function Composer({ editId, copyId, date }) {
       }
     })();
     return () => { cancel = true; };
-  }, [projectId, editId, copyId, toast]);
+  }, [projectId, editId, copyId, recycleId, toast]);
+  const slotCount = (project?.slots || []).length;
+  useEffect(() => {
+    if (!slotCount) { setNextSlot(null); return; }
+    api.get(`/projects/${projectId}/slots/next?count=1`).then((r) => setNextSlot(r.next[0] || null)).catch(() => setNextSlot(null));
+  }, [projectId, slotCount, editId]);
 
   const chosen = useMemo(() => (accounts || []).filter((a) => selected.includes(a.id)), [accounts, selected]);
   const kinds = media.map((m) => m.kind);
@@ -350,13 +370,14 @@ export default function Composer({ editId, copyId, date }) {
     const payload = {
       project_id: projectId, body, account_ids: selected, media_ids: media.map((x) => x.id),
       overrides: Object.fromEntries(Object.entries(overrides).filter(([k]) => selected.includes(Number(k))).map(([k, v]) => [String(k), v])),
-      link_url: link.trim(), campaign: campaign.trim(), facebook_short_link: fbShort, mode: m,
+      link_url: link.trim(), campaign: campaign.trim(), facebook_short_link: fbShort, auto_crop: autoCrop, mode: m,
+      recycled_from: recycleId || null,
       tiktok: Object.fromEntries(ttChosen.map((a) => [String(a.id), { ...TT_EMPTY, ...(ttOpts[a.id] || {}) }])),
       scheduled_at: m === "at" || (m === "draft" && mode === "at") ? new Date(when).toISOString() : null,
     };
     setBusy(true);
     const r = await run(() => (editId ? api.put(`/posts/${editId}`, payload) : api.post("/posts", payload)),
-      m === "draft" ? "Brouillon enregistré" : m === "now" ? `Envoi lancé : suivez-le dans Publications${ttChosen.length ? ". TikTok peut mettre quelques minutes à traiter le post avant qu'il apparaisse sur votre profil" : ""}` : "Post programmé");
+      m === "draft" ? "Brouillon enregistré" : m === "queue" ? "Post ajouté à la file : il partira au prochain créneau libre" : m === "now" ? `Envoi lancé : suivez-le dans Publications${ttChosen.length ? ". TikTok peut mettre quelques minutes à traiter le post avant qu'il apparaisse sur votre profil" : ""}` : "Post programmé");
     setBusy(false);
     if (r) window.location.hash = m === "draft" ? "#/?status=draft" : "#/";
   };
@@ -381,7 +402,7 @@ export default function Composer({ editId, copyId, date }) {
     <>
       <div className="page-head">
         <div>
-          <h1>{editId ? "Modifier le post" : "Nouveau post"}</h1>
+          <h1>{editId ? "Modifier le post" : recycleId ? "Recycler un post" : "Nouveau post"}</h1>
           <p>{project.name} · un message, chaque réseau dans son format.</p>
         </div>
       </div>
@@ -466,6 +487,13 @@ export default function Composer({ editId, copyId, date }) {
                 onChange={(e) => { upload([...e.target.files]); e.target.value = ""; }} />
             </div>
             <span className="small muted" style={{ fontWeight: 400 }}>Images converties en JPEG (2048 px au plus) ; vidéos MP4 ou MOV. Instagram et TikTok exigent un média.</span>
+            {kinds.includes("image") && (
+              <label className="check small">
+                <input id="post-autocrop" type="checkbox" checked={autoCrop} onChange={(e) => setAutoCrop(e.target.checked)} />
+                <span>Adapter le cadrage des images à chaque réseau : Instagram 4:5, TikTok 9:16, X 16:9 (recadrage au centre, Facebook garde l'original). Voir l'aperçu à droite.
+                  {!autoCrop && " Sinon, seule une image refusée par Instagram (trop haute ou trop large) est recadrée."}</span>
+              </label>
+            )}
           </div>
 
           <div className="grid2">
@@ -497,8 +525,11 @@ export default function Composer({ editId, copyId, date }) {
             <span className="label">Quand</span>
             <div className="row">
               <Seg label="Moment de publication" value={mode} onChange={setMode}
-                options={[{ value: "now", label: "Maintenant" }, { value: "at", label: "Programmer" }]} />
+                options={[{ value: "now", label: "Maintenant" }, { value: "at", label: "Programmer" }, { value: "queue", label: "Prochain créneau" }]} />
               {mode === "at" && <input id="post-when" className="input" type="datetime-local" style={{ width: "auto" }} value={when} onChange={(e) => setWhen(e.target.value)} />}
+              {mode === "queue" && (slotCount === 0
+                ? <span className="small muted">Ce projet n'a pas de créneaux. <a href="#/projets">Les définir dans Projets</a></span>
+                : <span className="small" id="next-slot">{nextSlot ? <>Prochain créneau libre : <b>{fmtDateTime(nextSlot)}</b></> : nextSlot === null ? "Aucun créneau libre" : "…"}</span>)}
             </div>
           </div>
 
@@ -517,7 +548,7 @@ export default function Composer({ editId, copyId, date }) {
           <div className="actions">
             <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>Enregistrer le brouillon</button>
             <button type="button" className="btn primary" disabled={busy || issues.length > 0 || chosen.length === 0 || uploading > 0}
-              onClick={() => save(false)}>{mode === "now" ? `Publier sur ${chosen.length} compte${chosen.length > 1 ? "s" : ""}` : "Programmer"}</button>
+              onClick={() => save(false)}>{mode === "now" ? `Publier sur ${chosen.length} compte${chosen.length > 1 ? "s" : ""}` : mode === "queue" ? "Ajouter à la file" : "Programmer"}</button>
           </div>
         </div>
 
@@ -530,7 +561,7 @@ export default function Composer({ editId, copyId, date }) {
                 <div key={a.id} className="card" style={{ padding: 14 }}>
                   <div className="pv-head"><Net platform={a.platform} />{NETWORKS[a.platform].label}
                     {bad ? <Chip tone="bad">À corriger</Chip> : <Chip tone="ok">Prêt</Chip>}</div>
-                  <Preview account={a} text={t} media={media} project={project}
+                  <Preview account={a} text={t} media={media} project={project} autoCrop={autoCrop}
                     link={linkFor(a.platform)} />
                 </div>
               );
@@ -538,8 +569,8 @@ export default function Composer({ editId, copyId, date }) {
         </div>
       </div>
       {claude && <ClaudeDialog projectId={projectId} project={project} platforms={[...new Set(chosen.map((a) => a.platform))]}
-        currentText={body} kinds={kinds} mediaIds={media.map((m) => m.id)} hasLink={hasLink} status={aiStatus} isAdmin={me?.is_admin}
-        onApply={applyClaude} onClose={() => setClaude(false)} />}
+        currentText={body} kinds={kinds} preset={presetAsk} mediaIds={media.map((m) => m.id)} hasLink={hasLink} status={aiStatus} isAdmin={me?.is_admin}
+        onApply={(r, per) => { setPresetAsk(""); applyClaude(r, per); }} onClose={() => { setPresetAsk(""); setClaude(false); }} />}
       {picker && (
         <MediaPicker projectId={projectId} chosen={media} onClose={() => setPicker(false)}
           onPick={(m) => setMedia((c) => (c.some((x) => x.id === m.id) ? c.filter((x) => x.id !== m.id) : [...c, m]))} />

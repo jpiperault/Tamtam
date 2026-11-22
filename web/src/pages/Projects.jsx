@@ -1,7 +1,50 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
 import { useApp } from "../App.jsx";
+import { DAYS } from "../rules.js";
 import { Chip, Dialog, Field, Icon, useRun } from "../ui.jsx";
+
+const sortSlots = (l) => [...l].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+
+function SlotsDialog({ project, onClose, onSaved }) {
+  const run = useRun();
+  const [list, setList] = useState(sortSlots(project.slots || []));
+  const [day, setDay] = useState(1);
+  const [time, setTime] = useState("18:00");
+  const add = () => {
+    if (!time || list.some((s) => s.day === Number(day) && s.time === time)) return;
+    setList(sortSlots([...list, { day: Number(day), time }]));
+  };
+  const save = async () => {
+    if (await run(() => api.patch(`/projects/${project.id}`, { slots: list }), "Créneaux enregistrés")) onSaved();
+  };
+  return (
+    <Dialog title={`Créneaux de publication · ${project.name}`} onClose={onClose}>
+      <div className="stack">
+        <p className="small muted" style={{ margin: 0 }}>Les jours et heures où vos posts partent quand vous choisissez « Prochain créneau ».
+          Chaque post prend le premier créneau libre ; une campagne en occupe plusieurs à la suite.</p>
+        {list.length === 0 ? <div className="empty small">Aucun créneau pour l'instant.</div> : (
+          <div className="row" style={{ gap: 8 }}>
+            {list.map((s) => (
+              <span key={`${s.day}-${s.time}`} className="chip slot">{DAYS[s.day]} {s.time}
+                <button type="button" className="btn ghost small" aria-label={`Retirer ${DAYS[s.day]} ${s.time}`}
+                  onClick={() => setList(list.filter((x) => x !== s))}><Icon name="close" size={12} /></button></span>
+            ))}
+          </div>
+        )}
+        <div className="row" style={{ gap: 8 }}>
+          <select id="slot-day" className="select" style={{ width: "auto" }} value={day} onChange={(e) => setDay(e.target.value)}>
+            {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+          <input id="slot-time" className="input" type="time" style={{ width: "auto" }} value={time} onChange={(e) => setTime(e.target.value)} />
+          <button type="button" id="slot-add" className="btn small" onClick={add}><Icon name="plus" size={14} />Ajouter</button>
+        </div>
+        <div className="dialog-foot"><button type="button" className="btn" onClick={onClose}>Annuler</button>
+          <button type="button" id="slots-save" className="btn primary" onClick={save}>Enregistrer</button></div>
+      </div>
+    </Dialog>
+  );
+}
 
 function ProjectForm({ initial, onClose, onSaved }) {
   const run = useRun();
@@ -34,6 +77,7 @@ export default function Projects() {
   const { projects, refreshProjects, setProjectId, projectId } = useApp();
   const run = useRun();
   const [edit, setEdit] = useState(null);
+  const [slotsOf, setSlotsOf] = useState(null);
   const saved = async (p) => {
     setEdit(null);
     await refreshProjects();
@@ -60,12 +104,14 @@ export default function Projects() {
               <div className="row">
                 {!p.archived && <button type="button" className="btn small" onClick={() => { setProjectId(p.id); window.location.hash = "#/comptes"; }}>Ouvrir</button>}
                 <button type="button" className="btn small" onClick={() => setEdit(p)}>Modifier</button>
+                {!p.archived && <button type="button" className="btn small" onClick={() => setSlotsOf(p)}><Icon name="clock" size={14} />Créneaux{p.slots?.length ? ` (${p.slots.length})` : ""}</button>}
                 <button type="button" className="btn small" onClick={() => archive(p)}>{p.archived ? "Réactiver" : "Archiver"}</button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {slotsOf && <SlotsDialog project={slotsOf} onClose={() => setSlotsOf(null)} onSaved={() => { setSlotsOf(null); refreshProjects(); }} />}
       {edit && <ProjectForm initial={edit === "new" ? null : edit} onClose={() => setEdit(null)} onSaved={saved} />}
     </>
   );

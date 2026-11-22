@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from .. import platforms, worker
+from .. import platforms, slots, worker
 from .common import current_user, fetchall, fetchone, get_conn, project_or_404
 
 router = APIRouter()
@@ -45,7 +45,9 @@ class PostIn(BaseModel):
     campaign: str = Field(default="", max_length=80)
     facebook_short_link: bool = False   # Facebook : lien court suivi /l/… au lieu du lien direct
     tiktok: dict[str, TikTokOptions] = Field(default_factory=dict)   # identifiant du compte TikTok → réglages
-    mode: str = Field(default="draft", pattern="^(draft|now|at)$")
+    auto_crop: bool = False             # recadrer les images au format conseillé de chaque réseau
+    recycled_from: int | None = None    # post d'origine (nouvelle version d'un ancien post)
+    mode: str = Field(default="draft", pattern="^(draft|now|at|queue)$")   # queue : prochain créneau libre
     scheduled_at: datetime | None = None
 
 
@@ -62,14 +64,17 @@ async def _post_full(conn, post_id: int) -> dict | None:
         LEFT JOIN links l ON l.post_target_id=t.id
         WHERE t.post_id=%s ORDER BY array_position(ARRAY['instagram','facebook','x','tiktok'], t.platform)""", (post_id,))
     post["media"] = [{"id": m["id"], "kind": m["kind"], "url": f"/m/{m['token']}{m['ext']}", "filename": m["filename"],
-                      "duration_s": m["duration_s"]}
+                      "duration_s": m["duration_s"], "width": m["width"], "height": m["height"]}
                      for m in await fetchall(conn, "SELECT m.* FROM post_media pm JOIN media m ON m.id=pm.media_id "
                                                    "WHERE pm.post_id=%s ORDER BY pm.position", (post_id,))]
     return post
 
 
-async def _validate(conn, body: PostIn) -> tuple[list[dict], list[dict]]:
-    await project_or_404(conn, body.project_id)
+async def _validate(conn, body: PostIn, tz: str = "Europe/Paris", post_id: int | None = None) -> tuple[list[dict], list[dict]]:
+    project = await project_or_404(conn, body.project_id)
+    if body.recycled_from and not await fetchone(conn, "SELECT 1 FROM posts WHERE id=%s AND project_id=%s",
+                                                 (body.recycled_from, body.project_id)):
+        body.recycled_from = None
     if body.link_url and not body.link_url.startswith(("https://", "http://")):
         raise HTTPException(422, "le lien doit commencer par https://")
     accounts = []
@@ -98,6 +103,14 @@ async def _validate(conn, body: PostIn) -> tuple[list[dict], list[dict]]:
                 problems += tiktok_problems(body.tiktok.get(str(a["id"])) or TikTokOptions())
         if problems:
             raise HTTPException(422, " ".join(dict.fromkeys(problems)))
+        if body.mode == "queue":
+            if not project["slots"]:
+                raise HTTPException(422, "ce projet n'a pas de créneaux de publication : ajoutez-en dans Projets")
+            found = slots.upcoming(project["slots"], tz, await slots.taken(conn, body.project_id, post_id),
+                                   datetime.now(timezone.utc))
+            if not found:
+                raise HTTPException(422, "aucun créneau libre dans l'année qui vient")
+            body.scheduled_at = found[0]
         if body.mode == "at":
             if body.scheduled_at is None:
                 raise HTTPException(422, "indiquez la date de publication")
@@ -126,35 +139,36 @@ def _sched(body: PostIn) -> tuple[str, datetime | None]:
         return "draft", body.scheduled_at
     if body.mode == "now":
         return "scheduled", datetime.now(timezone.utc)
-    return "scheduled", body.scheduled_at
+    return "scheduled", body.scheduled_at   # at, ou queue (heure du créneau trouvée par _validate)
 
 
 @router.post("/posts", status_code=201)
-async def create_post(body: PostIn, user=Depends(current_user), conn=Depends(get_conn)):
-    accounts, media = await _validate(conn, body)
+async def create_post(body: PostIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    accounts, media = await _validate(conn, body, request.app.state.settings.timezone)
     status, when = _sched(body)
     row = await fetchone(conn, "INSERT INTO posts(project_id, created_by, body, link_url, campaign, facebook_short_link, "
-                               "scheduled_at, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                               "auto_crop, recycled_from, scheduled_at, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                               "RETURNING id",
                          (body.project_id, user["id"], body.body, body.link_url.strip(), body.campaign.strip(),
-                          body.facebook_short_link, when, status))
+                          body.facebook_short_link, body.auto_crop, body.recycled_from, when, status))
     await _write(conn, row["id"], body, accounts, media)
     await conn.commit()
     return await _post_full(conn, row["id"])
 
 
 @router.put("/posts/{post_id}")
-async def update_post(post_id: int, body: PostIn, user=Depends(current_user), conn=Depends(get_conn)):
+async def update_post(post_id: int, body: PostIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
     post = await fetchone(conn, "SELECT * FROM posts WHERE id=%s FOR UPDATE", (post_id,))
     if not post:
         raise HTTPException(404, "post introuvable")
     if post["status"] not in ("draft", "scheduled") or post["project_id"] != body.project_id:
         raise HTTPException(409, "ce post est déjà en cours de publication ou publié : dupliquez-le pour le modifier")
-    accounts, media = await _validate(conn, body)
+    accounts, media = await _validate(conn, body, request.app.state.settings.timezone, post_id)
     status, when = _sched(body)
-    await conn.execute("UPDATE posts SET body=%s, link_url=%s, campaign=%s, facebook_short_link=%s, scheduled_at=%s, status=%s, "
-                       "updated_at=now() WHERE id=%s",
-                       (body.body, body.link_url.strip(), body.campaign.strip(), body.facebook_short_link, when, status,
-                        post_id))
+    await conn.execute("UPDATE posts SET body=%s, link_url=%s, campaign=%s, facebook_short_link=%s, auto_crop=%s, "
+                       "scheduled_at=%s, status=%s, updated_at=now() WHERE id=%s",
+                       (body.body, body.link_url.strip(), body.campaign.strip(), body.facebook_short_link,
+                        body.auto_crop, when, status, post_id))
     await _write(conn, post_id, body, accounts, media)
     await conn.commit()
     return await _post_full(conn, post_id)

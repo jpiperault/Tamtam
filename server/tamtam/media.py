@@ -84,7 +84,11 @@ def store(src: Path, data_dir: str) -> dict:
 
 
 def remove(data_dir: str, token: str, ext: str) -> None:
+    from . import crop
+
+    src = path_for(data_dir, token, ext)
+    crop.remove_all(src, token)
     try:
-        path_for(data_dir, token, ext).unlink()
+        src.unlink()
     except FileNotFoundError:
         pass

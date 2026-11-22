@@ -597,3 +597,137 @@ def test_telegram_alerts(client, project, accounts, monkeypatch):
     assert len(texts) == 2 and all("échec de publication sur X" in t for t in texts)
     ok(client.put("/api/v1/admin/telegram", json={"token": ""}))
     assert not ok(client.get("/api/v1/admin/telegram"))["has_token"]
+
+
+# --- 1.4 : créneaux, recadrage, campagne, recyclage
+
+def test_slots_unit():
+    from datetime import datetime, timezone
+
+    from tamtam import slots
+
+    with pytest.raises(ValueError):
+        slots.clean([{"day": 7, "time": "10:00"}])
+    with pytest.raises(ValueError):
+        slots.clean([{"day": 1, "time": "25:00"}])
+    s = slots.clean([{"day": 3, "time": "12:00"}, {"day": 1, "time": "18:30"}, {"day": 1, "time": "18:30"}])
+    assert s == [{"day": 1, "time": "18:30"}, {"day": 3, "time": "12:00"}]
+    # lundi 2 mars 2026, 9 h UTC (10 h à Paris) : mardi 18:30 puis jeudi 12:00, heure de Paris
+    now = datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc)
+    got = slots.upcoming(s, "Europe/Paris", set(), now, 3)
+    assert [g.isoformat() for g in got] == ["2026-03-03T17:30:00+00:00", "2026-03-05T11:00:00+00:00",
+                                            "2026-03-10T17:30:00+00:00"]
+    # un créneau déjà pris est sauté
+    got = slots.upcoming(s, "Europe/Paris", {datetime(2026, 3, 3, 17, 30, 20, tzinfo=timezone.utc)}, now, 1)
+    assert got[0].isoformat() == "2026-03-05T11:00:00+00:00"
+    assert slots.upcoming([], "Europe/Paris", set(), now, 2) == []
+
+
+def test_slots_queue(client, accounts):
+    p = ok(client.post("/api/v1/projects", json={"name": "Projet créneaux"}), 201)
+    acc = ok(client.post("/api/v1/connect/x/start", json={"project_id": p["id"], "demo": True}))
+    cands = ok(client.get(f"/api/v1/connect/pending/{acc['choose']}"))["candidates"]
+    ok(client.post(f"/api/v1/connect/pending/{acc['choose']}", json={"keys": [c["key"] for c in cands]}))
+    x = ok(client.get(f"/api/v1/projects/{p['id']}/accounts"))[0]["id"]
+    base = {"project_id": p["id"], "body": "File", "account_ids": [x], "mode": "queue"}
+    r = client.post("/api/v1/posts", json=base)
+    assert r.status_code == 422 and "créneaux" in r.json()["detail"]
+    assert client.patch(f"/api/v1/projects/{p['id']}", json={"slots": [{"day": 9, "time": "10:00"}]}).status_code == 422
+    every_day = [{"day": d, "time": "09:15"} for d in range(7)]
+    got = ok(client.patch(f"/api/v1/projects/{p['id']}", json={"slots": every_day}))
+    assert len(got["slots"]) == 7
+    nxt = ok(client.get(f"/api/v1/projects/{p['id']}/slots/next?count=3"))["next"]
+    assert len(nxt) == 3
+    a = ok(client.post("/api/v1/posts", json=base), 201)
+    b = ok(client.post("/api/v1/posts", json=base), 201)
+    assert a["status"] == "scheduled" and a["scheduled_at"] != b["scheduled_at"]
+    from datetime import datetime
+    assert datetime.fromisoformat(a["scheduled_at"]) == datetime.fromisoformat(nxt[0])
+    assert datetime.fromisoformat(b["scheduled_at"]) == datetime.fromisoformat(nxt[1])
+    # modifier un post de la file le garde à son créneau (il ne se compte pas comme occupé)
+    a2 = ok(client.put(f"/api/v1/posts/{a['id']}", json=base))
+    assert datetime.fromisoformat(a2["scheduled_at"]) == datetime.fromisoformat(nxt[0])
+    nxt2 = ok(client.get(f"/api/v1/projects/{p['id']}/slots/next"))["next"]
+    assert datetime.fromisoformat(nxt2[0]) == datetime.fromisoformat(nxt[2])
+
+
+def test_crop_unit(tmp_path):
+    from PIL import Image
+
+    from tamtam import crop, worker
+
+    assert crop.ratio_for("instagram", 1000, 3000, False) == 0.8      # trop haute : 4:5
+    assert crop.ratio_for("instagram", 3000, 1000, False) == 1.91     # trop large
+    assert crop.ratio_for("instagram", 1000, 1000, False) is None     # carré accepté
+    assert crop.ratio_for("x", 1000, 3000, False) is None             # X accepte tout
+    assert crop.ratio_for("instagram", 1000, 1000, True) == 0.8
+    assert crop.ratio_for("tiktok", 1000, 1000, True) == 9 / 16
+    assert crop.ratio_for("facebook", 1000, 3000, True) is None
+    assert crop.ratio_for("x", 1600, 900, True) is None               # déjà en 16:9
+    assert crop.box(1000, 1000, 16 / 9) == (0, 219, 1000, 781)
+    media_dir = tmp_path / "media"
+    media_dir.mkdir()
+    Image.new("RGB", (1000, 3000), (10, 20, 30)).save(media_dir / "tok.jpg", "JPEG")
+    rows = [{"id": 1, "kind": "image", "token": "tok", "ext": ".jpg", "mime": "image/jpeg", "size": 1,
+             "width": 1000, "height": 3000, "duration_s": None}]
+    ig = worker.media_files(rows, str(tmp_path), "https://t.example", "instagram", False)[0]
+    assert ig.url == "https://t.example/m/tok-c800.jpg"
+    with Image.open(ig.path) as im:
+        assert im.size == (1000, 1250)
+    fb = worker.media_files(rows, str(tmp_path), "https://t.example", "facebook", True)[0]
+    assert fb.url == "https://t.example/m/tok.jpg"
+    tt = worker.media_files(rows, str(tmp_path), "https://t.example", "tiktok", True)[0]
+    with Image.open(tt.path) as im:
+        assert im.size == (1000, 1778)
+    from tamtam import media
+    media.remove(str(tmp_path), "tok", ".jpg")
+    assert list(media_dir.iterdir()) == []
+
+
+def test_auto_crop_publish(client, project, accounts):
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (800, 2000), (90, 20, 30)).save(buf, "PNG")
+    img = ok(client.post(f"/api/v1/projects/{project['id']}/media", files={"file": ("haute.png", buf.getvalue(), "image/png")}), 201)
+    post = ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Recadrée",
+                                                 "account_ids": [accounts["instagram"]["id"]], "media_ids": [img["id"]],
+                                                 "auto_crop": True}), 201)
+    assert post["auto_crop"] and post["media"][0]["height"] == 2000
+    run_worker(client)
+    assert ok(client.get(f"/api/v1/posts/{post['id']}"))["status"] == "done"
+    token = img["url"].split("/m/")[1].removesuffix(".jpg")
+    r = client.get(f"/m/{token}-c800.jpg")
+    assert r.status_code == 200
+
+
+def test_campaign_and_recycle(client, project, accounts, monkeypatch):
+    from tamtam import ai
+
+    posts = [{"title": f"Post {i}", "common": f"Texte {i}", "versions": [{"platform": "x", "text": f"X {i}"}]}
+             for i in range(4)]
+    fake = _FakeClaude([_claude_message({"posts": posts, "note": ""})])
+    monkeypatch.setattr(ai, "get_client", lambda key: fake)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "sk-ant-test-123", "model": "claude-opus-5-5", "daily_limit": 100}))
+    r = ok(client.post("/api/v1/ai/campaign", json={"project_id": project["id"], "brief": "La v2 sort", "count": 3,
+                                                     "platforms": ["x", "facebook"], "tone": "pro"}))
+    assert [p["title"] for p in r["posts"]] == ["Post 0", "Post 1", "Post 2"]   # coupé au nombre demandé
+    assert r["posts"][0]["versions"] == {"x": "X 0"} and r["posts"][0]["too_long"] == []
+    call = fake.calls[0]
+    assert "campagne de 3 posts" in call["messages"][0]["content"] and "SÉRIE" in call["system"]
+    item = call["output_config"]["format"]["schema"]["properties"]["posts"]["items"]
+    assert item["properties"]["versions"]["items"]["properties"]["platform"]["enum"] == ["facebook", "x"]
+    assert client.post("/api/v1/ai/campaign", json={"project_id": project["id"], "brief": "x", "count": 11,
+                                                    "platforms": ["x"]}).status_code == 422
+    # recyclage : le nouveau post garde la trace de l'original
+    src = ok(client.get(f"/api/v1/posts?project_id={project['id']}&status=done"))[0]
+    new = ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "draft", "body": "Nouvelle version",
+                                                "recycled_from": src["id"]}), 201)
+    assert new["recycled_from"] == src["id"]
+    new = ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "draft", "body": "x",
+                                                "recycled_from": 999999}), 201)
+    assert new["recycled_from"] is None
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5"}))
+    sim = ok(client.post("/api/v1/ai/campaign", json={"project_id": project["id"], "brief": "La v2", "count": 2,
+                                                       "platforms": ["x"]}))
+    assert len(sim["posts"]) == 2 and sim["model"] == "simulation"

@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from . import log, media as media_mod, notify, platforms
+from . import crop, log, media as media_mod, notify, platforms
 from .platforms import AuthExpired, Content, MediaFile, PublishError
 
 _log = log.get("worker")
@@ -26,6 +26,24 @@ def with_utm(url: str, platform: str, campaign: str, post_id: int) -> str:
     q += [("utm_source", platform), ("utm_medium", "social"), ("utm_campaign", campaign or "tamtam"),
           ("utm_content", f"post-{post_id}")]
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
+
+
+def media_files(rows: list[dict], data_dir: str, public_url: str, platform: str, auto_crop: bool) -> list[MediaFile]:
+    """Médias du post pour ce réseau, images recadrées si besoin (voir crop.py)."""
+    out = []
+    for m in rows:
+        path = media_mod.path_for(data_dir, m["token"], m["ext"])
+        name, size = f"{m['token']}{m['ext']}", m["size"]
+        ratio = crop.ratio_for(platform, m.get("width"), m.get("height"), auto_crop) if m["kind"] == "image" else None
+        if ratio:
+            try:
+                path, name = crop.cropped(path, m["token"], ratio)
+                size = path.stat().st_size
+            except OSError as exc:  # image illisible : on garde l'original, le réseau dira s'il le refuse
+                _log.warning("recadrage impossible pour le média %s : %s", m["id"], exc)
+        out.append(MediaFile(kind=m["kind"], path=path, url=f"{public_url}/m/{name}", mime=m["mime"], size=size,
+                             duration_s=m.get("duration_s")))
+    return out
 
 
 async def recompute_status(conn, post_id: int) -> str:
@@ -123,10 +141,9 @@ async def publish_target(app, target_id: int) -> None:
         post = await cur.fetchone()
         cur = await conn.execute("SELECT m.* FROM post_media pm JOIN media m ON m.id=pm.media_id "
                                  "WHERE pm.post_id=%s ORDER BY pm.position", (post["id"],))
-        files = [MediaFile(kind=m["kind"], path=media_mod.path_for(s.data_dir, m["token"], m["ext"]),
-                           url=f"{s.public_url}/m/{m['token']}{m['ext']}", mime=m["mime"], size=m["size"],
-                           duration_s=m.get("duration_s"))
-                 for m in await cur.fetchall()]
+        rows = await cur.fetchall()
+        files = await asyncio.to_thread(media_files, rows, s.data_dir, s.public_url, target["platform"],
+                                        bool(post.get("auto_crop")))
         link = ""
         if post["link_url"] and target["platform"] == "facebook" and not post["facebook_short_link"]:
             # Par défaut sur Facebook : le lien direct (avec UTM), sans lien court ni comptage des clics.

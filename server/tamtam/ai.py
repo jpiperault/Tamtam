@@ -311,6 +311,104 @@ async def draft(api_key: str, model: str, project: dict, instructions: str, curr
                  output_tokens=int(getattr(usage, "output_tokens", 0) or 0), model=str(message.model or model))
 
 
+# --- Campagne : une série de posts à partir d'une seule consigne
+
+CAMPAIGN_PROMPT = """
+
+Campagne : on te demande ici une SÉRIE de posts qui seront publiés à quelques jours d'intervalle, dans l'ordre. \
+Construis une progression (par exemple : teaser, annonce, une fonctionnalité ou un bénéfice par post, rappel final) \
+sans jamais te répéter : chaque post a son propre angle et son accroche, et se comprend seul (un lecteur ne verra \
+souvent qu'un post de la série). Les mêmes règles s'appliquent : aucun fait inventé ; si la présentation ne donne \
+pas assez de matière pour le nombre de posts demandé, varie les angles (problème résolu, public visé, coulisses, \
+question au lecteur) plutôt que d'inventer, et dis-le dans note.
+
+Pour chaque post : title (3 à 6 mots, pour l'utilisateur, jamais publié), common et versions comme pour un post seul."""
+
+
+def campaign_schema(platforms: list[str]) -> dict:
+    return _obj({
+        "posts": {"type": "array", "items": _obj({
+            "title": {"type": "string"},
+            "common": {"type": "string"},
+            "versions": {"type": "array", "items": _obj({
+                "platform": {"type": "string", "enum": platforms},
+                "text": {"type": "string"},
+            })},
+        })},
+        "note": {"type": "string"},
+    })
+
+
+@dataclass
+class Campaign:
+    posts: list[dict]      # [{title, common, versions: {platform: text}}]
+    note: str
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+
+def parse_campaign(text: str, platforms: list[str], count: int) -> tuple[list[dict], str]:
+    try:
+        data = json.loads(text)
+        posts = []
+        for item in data["posts"][:count]:
+            versions = {}
+            for v in item["versions"]:
+                p = str(v["platform"])
+                if p in platforms and p not in versions:
+                    versions[p] = str(v["text"]).strip()
+            common = str(item["common"]).strip()
+            if common or versions:
+                posts.append({"title": str(item.get("title") or "").strip()[:80], "common": common,
+                              "versions": versions})
+        note = str(data.get("note") or "").strip()
+    except (ValueError, KeyError, TypeError) as exc:
+        raise AIError("réponse de Claude illisible : relancez") from exc
+    if not posts:
+        raise AIError("Claude n'a rien proposé : précisez la consigne")
+    return posts, note
+
+
+async def campaign(api_key: str, model: str, project: dict, brief: str, count: int, tone: str,
+                   platforms: list[str], has_link: bool) -> Campaign:
+    platforms = [p for p in PLATFORMS if p in platforms]
+    if not platforms:
+        raise AIError("choisissez au moins un compte avant de demander à Claude")
+    text = build_user_content(project, brief, "", tone, platforms, has_link, []).replace(
+        "Rédige le post et renvoie le JSON demandé.",
+        f"Rédige une campagne de {count} posts, dans l'ordre de publication, et renvoie le JSON demandé.")
+    base = dict(
+        max_tokens=32000,
+        system=SYSTEM_PROMPT + CAMPAIGN_PROMPT,
+        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": campaign_schema(platforms)}},
+        messages=[{"role": "user", "content": text}],
+    )
+    message = await _call(get_client(api_key), model, base)
+    if message.stop_reason == "refusal":
+        raise AIError("Claude a refusé de rédiger cette campagne : reformulez la consigne")
+    if message.stop_reason == "max_tokens":
+        raise AIError("réponse trop longue : demandez moins de posts et relancez")
+    raw = next((b.text for b in message.content if getattr(b, "type", "") == "text"), "")
+    posts, note = parse_campaign(raw, platforms, count)
+    if len(posts) < count:
+        note = " ".join([note, f"Claude a proposé {len(posts)} post(s) sur les {count} demandés."]).strip()
+    usage = message.usage
+    return Campaign(posts=posts, note=note, input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+                    output_tokens=int(getattr(usage, "output_tokens", 0) or 0), model=str(message.model or model))
+
+
+def simulated_campaign(project: dict, brief: str, count: int, platforms: list[str]) -> Campaign:
+    angles = ["Teaser", "Annonce", "Bénéfice principal", "Pour qui ?", "Coulisses", "Question au lecteur",
+              "Astuce", "Rappel", "Dernier jour", "Merci"]
+    posts = []
+    for i in range(count):
+        d = simulated_draft(project, f"{angles[i % len(angles)]} : {brief}", "", platforms)
+        posts.append({"title": angles[i % len(angles)], "common": d.common, "versions": d.versions})
+    return Campaign(posts=posts, note="Textes factices : mode simulation sans clé API Claude.", input_tokens=0,
+                    output_tokens=0, model="simulation")
+
+
 def simulated_draft(project: dict, instructions: str, current_text: str, platforms: list[str]) -> Draft:
     """Mode simulation sans clé : une proposition factice, pour essayer l'écran sans appeler Anthropic."""
     sujet = (instructions or current_text or "notre nouveauté").strip().splitlines()[0][:120]

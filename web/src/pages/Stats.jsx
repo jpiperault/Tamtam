@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
 import { useApp } from "../App.jsx";
-import { Loading, NETWORKS, Net, ORDER, Seg, useLoad } from "../ui.jsx";
+import { Icon, Loading, NETWORKS, Net, ORDER, Seg, useLoad } from "../ui.jsx";
 
 export default function Stats() {
   const { projectId, project } = useApp();
@@ -41,9 +41,10 @@ export default function Stats() {
           <h2>Posts qui ont ramené le plus de visites</h2>
           {data.top.length === 0 ? <p className="muted" style={{ margin: 0 }}>Rien à classer pour cette période.</p> : (
             <div className="table-wrap"><table>
-              <thead><tr><th>Post</th><th style={{ textAlign: "right" }}>Clics</th></tr></thead>
+              <thead><tr><th>Post</th><th style={{ textAlign: "right" }}>Clics</th><th /></tr></thead>
               <tbody>{data.top.map((p) => (
-                <tr key={p.id}><td style={{ whiteSpace: "normal" }}>{p.body}</td><td className="mono" style={{ textAlign: "right" }}>{p.clicks}</td></tr>
+                <tr key={p.id}><td style={{ whiteSpace: "normal" }}>{p.body}</td><td className="mono" style={{ textAlign: "right" }}>{p.clicks}</td>
+                  <td style={{ textAlign: "right" }}><a className="btn small" href={`#/nouveau?recycle=${p.id}`} title="Republier ce post dans une nouvelle version rédigée par Claude"><Icon name="sparkle" size={14} />Recycler</a></td></tr>
               ))}</tbody>
             </table></div>
           )}

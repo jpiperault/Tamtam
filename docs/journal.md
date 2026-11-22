@@ -1,5 +1,22 @@
 # Journal
 
+## 1.4.0 — 22 novembre 2026
+
+- **Campagne de lancement** (nouvelle page) : Claude rédige une série de 2 à 10 posts à partir d'une seule consigne ;
+  relecture et correction de chaque post, puis programmation sur les créneaux du projet ou à intervalle régulier.
+  Les posts qui ne peuvent pas partir tels quels (média manquant, réglages TikTok) sont créés en brouillons datés.
+- **Créneaux de publication** par projet (Projets → Créneaux) et option « Prochain créneau » dans Nouveau post.
+- **Recadrage par réseau** : case « Adapter le cadrage » (Instagram 4:5, TikTok 9:16, X 16:9), aperçu fidèle ; une
+  image qu'Instagram refuserait est toujours recadrée. Les fichiers recadrés sont gardés à côté de l'original et
+  supprimés avec lui.
+- **Recycler** un post publié (Publications, Statistiques) : nouveau post pré-rempli, Claude propose une nouvelle
+  formulation. Le post garde la trace de l'original.
+- Les réglages TikTok ne sont plus repris quand on duplique un post (TikTok interdit de les pré-remplir).
+
+Vérifié : tests d'API (créneaux et file d'attente, recadrage, campagne avec un faux Claude, recyclage), écrans dans
+le navigateur en mode simulation. **Pas encore vérifié** : une vraie campagne rédigée par Claude, un vrai post
+Instagram recadré.
+
 ## 1.3.0 — 22 novembre 2026
 
 - **TikTok, écran conforme à l'audit** : réglages choisis à chaque post (compte affiché, « Qui peut voir » sans

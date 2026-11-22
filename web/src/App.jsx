@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { Icon, ToastProvider, useRun } from "./ui.jsx";
 import Login from "./pages/Login.jsx";
 import Composer from "./pages/Composer.jsx";
+import Campaign from "./pages/Campaign.jsx";
 import Posts from "./pages/Posts.jsx";
 import Calendar from "./pages/Calendar.jsx";
 import Accounts from "./pages/Accounts.jsx";
@@ -46,6 +47,7 @@ export function parseHash(hash) {
 
 const NAV = [
   { href: "#/nouveau", key: "nouveau", label: "Nouveau post", icon: "edit" },
+  { href: "#/campagne", key: "campagne", label: "Campagne", icon: "sparkle" },
   { href: "#/", key: "", label: "Publications", icon: "list" },
   { href: "#/calendrier", key: "calendrier", label: "Calendrier", icon: "calendar" },
   { href: "#/comptes", key: "comptes", label: "Comptes", icon: "user" },
@@ -115,7 +117,10 @@ function Router({ route }) {
   switch (section) {
     case "nouveau":
       return <Composer key={(id || "") + params.toString()} editId={id ? Number(id) : null}
-        copyId={params.get("copy") ? Number(params.get("copy")) : null} date={params.get("date")} />;
+        copyId={params.get("copy") ? Number(params.get("copy")) : null}
+        recycleId={params.get("recycle") ? Number(params.get("recycle")) : null} date={params.get("date")} />;
+    case "campagne":
+      return <Campaign />;
     case "calendrier":
       return <Calendar />;
     case "comptes":
