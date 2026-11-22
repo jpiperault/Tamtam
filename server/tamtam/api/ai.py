@@ -41,7 +41,7 @@ class DraftIn(BaseModel):
     instructions: str = Field(default="", max_length=4000)
     current_text: str = Field(default="", max_length=10000)
     tone: str = Field(default="", pattern="^(|enthousiaste|pro|decontracte|humour)$")
-    platforms: list[str] = Field(default_factory=list, max_length=4)
+    platforms: list[str] = Field(default_factory=list, max_length=8)
     media_kinds: list[str] = Field(default_factory=list, max_length=35)
     has_link: bool = False
     media_ids: list[int] = Field(default_factory=list, max_length=35)   # médias montrés à Claude
@@ -100,7 +100,7 @@ class CampaignIn(BaseModel):
     brief: str = Field(min_length=1, max_length=4000)
     count: int = Field(default=5, ge=2, le=10)
     tone: str = Field(default="", pattern="^(|enthousiaste|pro|decontracte|humour)$")
-    platforms: list[str] = Field(default_factory=list, max_length=4)
+    platforms: list[str] = Field(default_factory=list, max_length=8)
     has_link: bool = False
 
 

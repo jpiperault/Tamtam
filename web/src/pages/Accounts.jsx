@@ -8,7 +8,49 @@ const CARDS = [
   { platform: "facebook", provider: "meta", req: "Publie sur une Page Facebook, pas sur un profil personnel. Une connexion Meta couvre Facebook et Instagram." },
   { platform: "x", provider: "x", req: "Tout compte X. L'accès à l'API X en écriture peut être payant selon l'offre de l'application développeur." },
   { platform: "tiktok", provider: "tiktok", req: "Tout compte TikTok. Tant que l'application n'a pas passé l'audit TikTok, les posts ne sont visibles que par vous." },
+  { platform: "threads", provider: "threads", req: "Tout compte Threads. Se connecte avec l'application Threads (distincte de celle de Facebook et Instagram)." },
+  { platform: "bluesky", provider: "bluesky", req: "Tout compte Bluesky, avec un « mot de passe d'application » (pas votre mot de passe habituel). Aucune application développeur à créer." },
+  { platform: "linkedin", provider: "linkedin", req: "Publie sur votre profil LinkedIn ; sur une Page d'entreprise si l'option est activée dans Administration. À reconnecter tous les 60 jours." },
+  { platform: "youtube", provider: "google", req: "Une chaîne YouTube. Publie des Shorts : vidéo verticale ou carrée de 3 minutes au plus." },
 ];
+
+function BlueskyDialog({ projectId, onClose, onChoose }) {
+  const [ident, setIdent] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try {
+      const r = await api.post("/connect/bluesky/password", { project_id: projectId, identifier: ident, app_password: pwd });
+      onChoose(r.choose);
+    } catch (ex) {
+      setErr(ex.message);
+    }
+    setBusy(false);
+  };
+  return (
+    <Dialog title="Connecter Bluesky" onClose={onClose}>
+      <form className="stack" onSubmit={submit}>
+        <ol className="small" style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+          <li>Dans Bluesky : <b>Réglages → Confidentialité et sécurité → Mots de passe d'application → Ajouter</b>. Nommez-le « Tamtam ». Laissez décochée l'option « messages privés ».</li>
+          <li>Copiez le mot de passe affiché (de la forme <span className="mono">abcd-efgh-ijkl-mnop</span>) et collez-le ci-dessous.</li>
+        </ol>
+        <label className="field">Pseudo Bluesky
+          <input id="bsky-id" className="input" required value={ident} onChange={(e) => setIdent(e.target.value)} placeholder="nom.bsky.social" autoComplete="off" />
+        </label>
+        <label className="field">Mot de passe d'application
+          <input id="bsky-pwd" className="input mono" type="password" required value={pwd} onChange={(e) => setPwd(e.target.value)} autoComplete="new-password" />
+        </label>
+        <p className="small muted" style={{ margin: 0 }}>Tamtam ne garde pas ce mot de passe : il ouvre une session puis ne conserve que les jetons, chiffrés. Pour couper l'accès, supprimez le mot de passe d'application dans Bluesky.</p>
+        {err && <div className="notice danger small"><Icon name="alert" size={16} />{err}</div>}
+        <div className="dialog-foot"><button type="button" className="btn" onClick={onClose}>Annuler</button>
+          <button type="submit" id="bsky-go" className="btn primary" disabled={busy}>{busy ? "Connexion…" : "Connecter"}</button></div>
+      </form>
+    </Dialog>
+  );
+}
 
 function Chooser({ id, onDone }) {
   const run = useRun();
@@ -37,7 +79,8 @@ function Chooser({ id, onDone }) {
                   onChange={(e) => setKeys((k) => (e.target.checked ? [...k, c.key] : k.filter((x) => x !== c.key)))} />
                 <Net platform={c.platform} />
                 <span className="grow"><b>{c.name || c.handle}</b>{c.handle && <span className="muted"> @{c.handle}</span>}
-                  {c.detail && <span className="small muted"><br />Relié à la Page {c.detail}</span>}</span>
+                  {c.detail && <span className="small muted"><br />Relié à la Page {c.detail}</span>}
+                  {c.kind && <span className="small muted"><br />{c.kind === "page" ? "Page d'entreprise" : "Profil personnel"}</span>}</span>
                 {c.simulated && <Chip tone="warn">démo</Chip>}
               </label>
             ))}
@@ -64,7 +107,9 @@ function AccountItem({ a, onChange }) {
     <div className="acc-item">
       {a.avatar_url ? <img className="av" src={a.avatar_url} alt="" /> : <div className="av" />}
       <span className="grow"><b>{a.name || a.handle}</b>{a.handle && <span className="muted"> @{a.handle}</span>}
-        {a.meta?.page_name && <span className="small muted"><br />Page {a.meta.page_name}</span>}
+        {a.meta?.page_name && a.meta?.kind !== "page" && <span className="small muted"><br />Page {a.meta.page_name}</span>}
+        {a.platform === "linkedin" && a.meta?.kind && <span className="small muted"><br />{a.meta.kind === "page" ? "Page d'entreprise" : "Profil personnel"}</span>}
+        {a.expires_at && a.platform === "linkedin" && <span className="small muted"><br />Autorisation valable jusqu'au {new Date(a.expires_at).toLocaleDateString("fr-FR")}</span>}
         {a.last_error && <span className="err"><br />{a.last_error}</span>}</span>
       {a.simulated && <Chip tone="warn">démo</Chip>}
       {a.status === "ok" ? <Chip tone="ok">Connecté</Chip> : <Chip tone="bad">{a.status === "expired" ? "À reconnecter" : "Erreur"}</Chip>}
@@ -86,10 +131,12 @@ export default function Accounts({ params }) {
   const { data, error, reload } = useLoad(() => api.get(`/projects/${projectId}/accounts`), [projectId]);
   const providers = useLoad(() => api.get("/connect/providers"), []);
   const [choose, setChoose] = useState(params.get("choose"));
+  const [bsky, setBsky] = useState(false);
   const ok = params.get("ok");
   const err = params.get("err");
 
   const connect = async (provider, demo = false) => {
+    if (provider === "bluesky" && !demo) { setBsky(true); return; }
     const r = await run(() => api.post(`/connect/${provider}/start`, { project_id: projectId, demo }));
     if (!r) return;
     if (r.url) window.location.href = r.url;
@@ -141,6 +188,7 @@ export default function Accounts({ params }) {
         })}
       </div>
       {choose && <Chooser id={choose} onDone={done} />}
+      {bsky && <BlueskyDialog projectId={projectId} onClose={() => setBsky(false)} onChoose={(id) => { setBsky(false); setChoose(id); }} />}
     </>
   );
 }

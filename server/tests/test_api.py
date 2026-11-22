@@ -815,3 +815,189 @@ def test_week_bounds():
     # lundi 23 novembre 2026, 9 h à Paris : semaine du lundi 16 (0 h Paris) au lundi 23 (0 h Paris)
     start, end = week_bounds(datetime(2026, 11, 23, 8, 0, tzinfo=timezone.utc), "Europe/Paris")
     assert start.isoformat() == "2026-11-15T23:00:00+00:00" and end.isoformat() == "2026-11-22T23:00:00+00:00"
+
+
+# --- 1.6 : Threads, Bluesky, LinkedIn, YouTube
+
+def _mock(monkeypatch, module, handler):
+    import httpx
+
+    def fake_client(timeout: float = 30.0):
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=timeout)
+
+    monkeypatch.setattr(module, "client", fake_client)
+
+
+def test_new_networks_demo_publish(client, project):
+    ids = {}
+    for provider in ("threads", "bluesky", "linkedin", "google"):
+        r = ok(client.post(f"/api/v1/connect/{provider}/start", json={"project_id": project["id"], "demo": True}))
+        cands = ok(client.get(f"/api/v1/connect/pending/{r['choose']}"))["candidates"]
+        ok(client.post(f"/api/v1/connect/pending/{r['choose']}", json={"keys": [c["key"] for c in cands]}))
+    for a in ok(client.get(f"/api/v1/projects/{project['id']}/accounts")):
+        ids.setdefault(a["platform"], []).append(a["id"])
+    assert len(ids["linkedin"]) == 2 and ids["threads"] and ids["bluesky"] and ids["youtube"]
+    vid = ok(client.post(f"/api/v1/projects/{project['id']}/media",
+                         files={"file": ("v.mp4", _mp4_bytes(2), "video/mp4")}), 201)
+    text_ids = ids["threads"] + ids["bluesky"] + ids["linkedin"]
+    r = client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "x" * 301,
+                                           "account_ids": ids["bluesky"]})
+    assert r.status_code == 422 and "Bluesky" in r.json()["detail"]
+    r = client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Sans vidéo",
+                                           "account_ids": ids["youtube"]})
+    assert r.status_code == 422 and "YouTube" in r.json()["detail"]
+    post = ok(client.post("/api/v1/posts", json={
+        "project_id": project["id"], "mode": "now", "body": "Ma vidéo\nDescription", "media_ids": [vid["id"]],
+        "account_ids": text_ids + ids["youtube"],
+        "youtube": {str(ids["youtube"][0]): {"title": "Titre", "privacy": "unlisted"}}}), 201)
+    yt = next(t for t in post["targets"] if t["platform"] == "youtube")
+    assert yt["options"]["privacy"] == "unlisted" and yt["options"]["title"] == "Titre"
+    run_worker(client)
+    post = ok(client.get(f"/api/v1/posts/{post['id']}"))
+    assert post["status"] == "done", post["targets"]
+    assert [t["platform"] for t in post["targets"]][:3] == ["threads", "bluesky", "linkedin"]
+    # Bluesky ne passe pas par Administration
+    assert all(a["provider"] != "bluesky" for a in ok(client.get("/api/v1/admin/apps"))["apps"])
+    assert ok(client.get("/api/v1/connect/providers"))["providers"]["bluesky"]["configured"]
+
+
+def test_bluesky_unit(monkeypatch):
+    import json as _json
+
+    import httpx
+
+    from tamtam.platforms import bluesky
+    from tamtam.platforms.base import Content
+
+    text = "Été ☀️ : https://ex.test/a_b?c=1. #lancement et #2 fin"
+    f = bluesky.facets(text)
+    b = text.encode()
+    link = next(x for x in f if x["features"][0]["$type"].endswith("#link"))
+    assert b[link["index"]["byteStart"]:link["index"]["byteEnd"]].decode() == "https://ex.test/a_b?c=1"
+    tags = [x["features"][0]["tag"] for x in f if x["features"][0]["$type"].endswith("#tag")]
+    assert tags == ["lancement"]
+
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(req)
+        path = req.url.path
+        if path.endswith("createSession"):
+            body = _json.loads(req.content)
+            if body["password"] == "faux":
+                return httpx.Response(401, json={"error": "AuthenticationRequired"})
+            return httpx.Response(200, json={"did": "did:plc:abc", "handle": "moi.bsky.social",
+                                             "accessJwt": "a.eyJleHAiOjk5OTk5OTk5OTl9.s", "refreshJwt": "r.e30.s"})
+        if path.endswith("getProfile"):
+            return httpx.Response(200, json={"displayName": "Moi", "avatar": "https://cdn/a.jpg"})
+        if path.endswith("createRecord"):
+            return httpx.Response(200, json={"uri": "at://did:plc:abc/app.bsky.feed.post/3kxyz", "cid": "c"})
+        if path.endswith("getPosts"):
+            return httpx.Response(200, json={"posts": [{"likeCount": 3, "repostCount": 1, "quoteCount": 1,
+                                                        "replyCount": 2}]})
+        return httpx.Response(404, json={"error": "NotFound"})
+
+    _mock(monkeypatch, bluesky, handler)
+    import asyncio
+    cand = asyncio.run(bluesky.login("@moi.bsky.social", "abcd-efgh"))
+    assert cand["external_id"] == "did:plc:abc" and cand["name"] == "Moi" and cand["meta"]["pds"] == bluesky.DEFAULT_PDS
+    try:
+        asyncio.run(bluesky.login("moi", "faux"))
+        raise AssertionError("aurait dû échouer")
+    except bluesky.PublishError as exc:
+        assert "incorrect" in str(exc)
+    acc = {"external_id": "did:plc:abc", "handle": "moi.bsky.social", "access_token": "a", "meta": {}}
+    res = asyncio.run(bluesky.publish(acc, Content(text="Salut #test", link="https://t.example/l/abc")))
+    assert res.url == "https://bsky.app/profile/moi.bsky.social/post/3kxyz"
+    rec = _json.loads(seen[-1].content)["record"]
+    assert rec["text"].endswith("https://t.example/l/abc") and len(rec["facets"]) == 2
+    m = asyncio.run(bluesky.metrics(acc, res.external_id))
+    assert m["likes"] == 3 and m["shares"] == 2 and m["comments"] == 2
+
+
+def test_linkedin_unit(monkeypatch):
+    import asyncio
+    import json as _json
+
+    import httpx
+
+    from tamtam.platforms import linkedin
+    from tamtam.platforms.base import Content
+
+    assert linkedin.commentary("Prix (promo) : 5 * 2 #offre_spéciale https://ex.test/a_(b)") == \
+        "Prix \\(promo\\) : 5 \\* 2 #offre\\_spéciale https://ex.test/a_(b)"
+    posted = []
+
+    def handler(req: httpx.Request):
+        if req.url.path == "/rest/images" :
+            return httpx.Response(200, json={"value": {"uploadUrl": "https://up.test/1", "image": "urn:li:image:1"}})
+        if req.url.host == "up.test":
+            return httpx.Response(201)
+        if req.url.path == "/rest/posts":
+            assert req.headers["linkedin-version"] == linkedin.VERSION
+            posted.append(_json.loads(req.content))
+            return httpx.Response(201, headers={"x-restli-id": "urn:li:share:42"})
+        return httpx.Response(404)
+
+    _mock(monkeypatch, linkedin, handler)
+    import tempfile
+    from pathlib import Path
+
+    from tamtam.platforms.base import MediaFile
+    p = Path(tempfile.mkdtemp()) / "i.jpg"
+    p.write_bytes(b"\xff\xd8jpeg")
+    acc = {"external_id": "person:abc", "access_token": "t", "meta": {"author": "urn:li:person:abc"}}
+    res = asyncio.run(linkedin.publish(acc, Content(text="Bonjour (test)", media=[
+        MediaFile(kind="image", path=p, url="", mime="image/jpeg", size=6)])))
+    assert res.url == "https://www.linkedin.com/feed/update/urn:li:share:42/"
+    assert posted[0]["author"] == "urn:li:person:abc" and posted[0]["commentary"] == "Bonjour \\(test\\)"
+    assert posted[0]["content"] == {"media": {"id": "urn:li:image:1"}}
+
+
+def test_youtube_and_threads_unit(monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from tamtam.platforms import threads, youtube
+    from tamtam.platforms.base import Content, MediaFile
+
+    m = youtube.metadata("Mon titre <super>\nLigne 2\n#Shorts", "https://t.example/l/x", {"privacy": "bizarre"})
+    assert m["snippet"]["title"] == "Mon titre super" and m["snippet"]["description"].startswith("Ligne 2")
+    assert m["snippet"]["description"].endswith("https://t.example/l/x") and m["status"]["privacyStatus"] == "public"
+    m = youtube.metadata("Texte complet", "", {"title": "Titre choisi", "made_for_kids": True})
+    assert m["snippet"]["title"] == "Titre choisi" and m["snippet"]["description"] == "Texte complet"
+    assert m["status"]["selfDeclaredMadeForKids"] is True
+
+    import tempfile
+    from pathlib import Path
+    p = Path(tempfile.mkdtemp()) / "v.mp4"
+    p.write_bytes(b"0" * 1000)
+    calls = []
+
+    def yt(req: httpx.Request):
+        calls.append(req)
+        if req.method == "POST":
+            return httpx.Response(200, headers={"Location": "https://upload.test/session"})
+        return httpx.Response(201, json={"id": "vid123"})
+
+    _mock(monkeypatch, youtube, yt)
+    res = asyncio.run(youtube.publish({"access_token": "t"}, Content(text="Titre\nDesc", media=[
+        MediaFile(kind="video", path=p, url="", mime="video/mp4", size=1000, duration_s=20)])))
+    assert res.url == "https://www.youtube.com/shorts/vid123"
+    assert calls[1].headers["content-range"] == "bytes 0-999/1000"
+
+    def th(req: httpx.Request):
+        if req.url.path.endswith("/threads"):
+            return httpx.Response(200, json={"id": "c1"})
+        if req.url.path.endswith("/threads_publish"):
+            return httpx.Response(200, json={"id": "m1"})
+        if req.url.path.endswith("/c1"):
+            return httpx.Response(200, json={"status": "FINISHED"})
+        if req.url.path.endswith("/m1"):
+            return httpx.Response(200, json={"permalink": "https://www.threads.com/@moi/post/abc"})
+        return httpx.Response(404)
+
+    _mock(monkeypatch, threads, th)
+    res = asyncio.run(threads.publish({"external_id": "u1", "access_token": "t"}, Content(text="Bonjour")))
+    assert res.external_id == "m1" and res.url.endswith("/post/abc")

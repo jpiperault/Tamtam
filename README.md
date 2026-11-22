@@ -1,7 +1,7 @@
 # Tamtam
 
 Gestionnaire de réseaux sociaux pour faire connaître des apps, des sites et des produits : un post écrit une fois,
-publié sur **Instagram, Facebook, X et TikTok**, chacun dans son format, avec des liens suivis pour savoir quel
+publié sur **Instagram, Facebook, X, TikTok, Threads, Bluesky, LinkedIn et YouTube**, chacun dans son format, avec des liens suivis pour savoir quel
 réseau ramène des visites.
 
 - **Projets** : un projet par app ou site, avec ses propres comptes sociaux.

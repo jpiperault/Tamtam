@@ -95,7 +95,7 @@ MEDIA_COLS = "id, project_id, token, ext, filename, mime, kind, size, width, hei
 
 def media_out(m: dict) -> dict:
     return {**{k: m[k] for k in ("id", "project_id", "filename", "mime", "kind", "size", "width", "height",
-                                 "created_at")}, "url": f"/m/{m['token']}{m['ext']}"}
+                                 "duration_s", "created_at")}, "url": f"/m/{m['token']}{m['ext']}"}
 
 
 @router.get("/projects/{project_id}/media")

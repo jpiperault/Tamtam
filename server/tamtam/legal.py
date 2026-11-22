@@ -27,7 +27,8 @@ applications, sites et produits. Cette page explique quelles données il traite 
 - **Comptes des utilisateurs de {app}** : nom, adresse e-mail, mot de passe (stocké sous forme chiffrée irréversible).
 - **Comptes de réseaux sociaux connectés** (Facebook, Instagram, X, TikTok, Threads, Bluesky, LinkedIn, YouTube) :
   identifiant du compte, nom affiché, photo de profil et jetons d'accès délivrés par le réseau. Les jetons sont
-  chiffrés en base. {app} ne connaît jamais vos mots de passe de réseaux sociaux.
+  chiffrés en base. {app} ne connaît jamais vos mots de passe de réseaux sociaux (pour Bluesky, un « mot de passe
+  d'application » sert une seule fois à ouvrir la session ; il n'est pas conservé).
 - **Contenus publiés** : textes, images et vidéos préparés dans {app}, réglages de publication, et l'adresse des
   posts une fois publiés.
 - **Statistiques des posts** lues sur les réseaux : nombres de vues, de mentions J'aime, de commentaires, de partages
@@ -110,7 +111,8 @@ page explains which data it processes and why.
 - **{app} user accounts**: name, email address, password (stored as an irreversible hash).
 - **Connected social media accounts** (Facebook, Instagram, X, TikTok, Threads, Bluesky, LinkedIn, YouTube): account
   ID, display name, profile picture and the access tokens issued by the network. Tokens are encrypted at rest.
-  {app} never sees your social media passwords.
+  {app} never sees your social media passwords (for Bluesky, an "app password" is used once to open a session and
+  is not stored).
 - **Published content**: texts, images and videos prepared in {app}, posting settings, and the address of each post
   once published.
 - **Post statistics** read from the networks: number of views, likes, comments, shares and saves of each post

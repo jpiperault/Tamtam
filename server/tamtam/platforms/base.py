@@ -6,9 +6,11 @@ from pathlib import Path
 
 import httpx
 
-PLATFORMS = ("instagram", "facebook", "x", "tiktok")
-PROVIDER_OF = {"instagram": "meta", "facebook": "meta", "x": "x", "tiktok": "tiktok"}
-LABELS = {"instagram": "Instagram", "facebook": "Facebook", "x": "X", "tiktok": "TikTok"}
+PLATFORMS = ("instagram", "facebook", "x", "tiktok", "threads", "bluesky", "linkedin", "youtube")
+PROVIDER_OF = {"instagram": "meta", "facebook": "meta", "x": "x", "tiktok": "tiktok", "threads": "threads",
+               "bluesky": "bluesky", "linkedin": "linkedin", "youtube": "google"}
+LABELS = {"instagram": "Instagram", "facebook": "Facebook", "x": "X", "tiktok": "TikTok", "threads": "Threads",
+          "bluesky": "Bluesky", "linkedin": "LinkedIn", "youtube": "YouTube"}
 
 # Limites publiques des réseaux (à revoir si elles changent).
 RULES = {
@@ -20,6 +22,15 @@ RULES = {
           "link_in_text": True},
     "tiktok": {"text": 2200, "media_required": True, "max_images": 35, "max_videos": 1, "mix": False,
                "link_in_text": False},
+    "threads": {"text": 500, "media_required": False, "max_images": 20, "max_videos": 1, "mix": True,
+                "link_in_text": True},
+    "bluesky": {"text": 300, "media_required": False, "max_images": 4, "max_videos": 1, "mix": False,
+                "link_in_text": True},
+    "linkedin": {"text": 3000, "media_required": False, "max_images": 20, "max_videos": 1, "mix": False,
+                 "link_in_text": True},
+    # YouTube : une vidéo (Short : verticale ou carrée, 3 minutes au plus), pas d'image.
+    "youtube": {"text": 5000, "media_required": True, "max_images": 0, "max_videos": 1, "mix": False,
+                "link_in_text": True},
 }
 X_URL_LENGTH = 23  # X compte toute adresse comme 23 caractères
 

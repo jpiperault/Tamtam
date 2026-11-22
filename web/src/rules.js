@@ -35,6 +35,11 @@ export function warnings(platform, kinds, account, hasLink) {
     out.push("TikTok : les photos sont récupérées par TikTok à l'adresse publique de Tamtam, qui doit être vérifiée dans le portail développeur TikTok.");
   if (platform === "tiktok" && !account?.simulated)
     out.push("TikTok : tant que l'application n'a pas passé l'audit TikTok, le post n'est visible que par vous.");
+  const v = kinds.includes("video");
+  if (platform === "youtube" && v)
+    out.push("YouTube : pour être publiée comme Short, la vidéo doit être verticale ou carrée (3 minutes au plus). Quota : 100 envois par jour.");
+  if (platform === "bluesky" && v)
+    out.push("Bluesky : vidéo MP4 seulement, 3 minutes au plus, et l'adresse e-mail du compte Bluesky doit être vérifiée.");
   if (hasLink && (platform === "instagram" || platform === "tiktok"))
     out.push(`${platform === "instagram" ? "Instagram" : "TikTok"} : les liens ne sont pas cliquables dans les posts. Mettez le lien dans la bio du compte.`);
   return out;

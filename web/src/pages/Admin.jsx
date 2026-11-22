@@ -18,6 +18,20 @@ const GUIDES = {
     "Collez l'adresse de retour ci-dessous comme Redirect URI ; copiez le Client key et le Client secret.",
     "Pour les carrousels photo, vérifiez le domaine de Tamtam (URL properties) dans le portail.",
     "Soumettez l'app à l'audit TikTok pour publier en public ; avant l'audit, les posts sont privés."],
+  threads: ["Threads : un compte Threads (relié à Instagram ou non). Pas besoin de Page Facebook.",
+    "developers.facebook.com → Créer une app avec le cas d'utilisation « Accéder à l'API Threads » (une app à part de celle de Facebook/Instagram).",
+    "Cas d'utilisation → Personnaliser : ajoutez threads_basic et threads_content_publish (et threads_manage_insights pour les statistiques).",
+    "Paramètres de Threads : collez l'adresse ci-dessous dans « URL de rappel de redirection » (et dans les URL de désinstallation et de suppression si demandé).",
+    "Copiez ici l'identifiant et la clé secrète de l'app Threads (Paramètres de l'app → Général : « ID de l'app Threads »). En mode développement, ajoutez votre compte Threads comme testeur."],
+  linkedin: ["linkedin.com/developers → Create app (il faut une Page LinkedIn de l'entreprise pour créer l'app ; elle doit la vérifier).",
+    "Onglet Products : ajoutez « Sign In with LinkedIn using OpenID Connect » et « Share on LinkedIn » (libre-service, immédiat).",
+    "Onglet Auth : collez l'adresse ci-dessous dans « Authorized redirect URLs », puis copiez le Client ID et le Primary Client Secret.",
+    "Publier sur une Page d'entreprise demande en plus la « Community Management API », validée par LinkedIn sur dossier ; puis cochez l'option « Pages LinkedIn » plus bas.",
+    "LinkedIn ne renouvelle pas l'autorisation : reconnectez le compte tous les 60 jours (Tamtam prévient 7 jours avant)."],
+  google: ["console.cloud.google.com → Créer un projet → API et services → Bibliothèque : activez « YouTube Data API v3 ».",
+    "Écran de consentement OAuth : type Externe, ajoutez votre adresse comme utilisateur test (ou publiez l'app pour éviter une reconnexion chaque semaine).",
+    "Identifiants → Créer un ID client OAuth → Application Web ; collez l'adresse ci-dessous dans « URI de redirection autorisés ».",
+    "Copiez ici l'ID client et le code secret du client. Quota : 100 envois de vidéos par jour et par projet."],
 };
 
 function Copy({ text }) {
@@ -50,10 +64,10 @@ function AppCard({ app, onSaved }) {
         {GUIDES[app.provider].map((g) => <li key={g}>{g}</li>)}
       </ol>
       <div className="field">Adresse de retour à déclarer<Copy text={app.redirect_uri} /><span className="small muted" style={{ fontWeight: 400 }}>{app.where}</span></div>
-      <Field label={app.provider === "tiktok" ? "Client key" : app.provider === "meta" ? "Identifiant de l'app (App ID)" : "Client ID (OAuth 2.0)"}>
+      <Field label={app.provider === "tiktok" ? "Client key" : app.provider === "meta" ? "Identifiant de l'app (App ID)" : app.provider === "threads" ? "ID de l'app Threads" : "Client ID (OAuth 2.0)"}>
         <input id={`cid-${app.provider}`} className="input mono" value={cid} onChange={(e) => setCid(e.target.value)} autoComplete="off" />
       </Field>
-      <Field label={`${app.provider === "meta" ? "Clé secrète (App Secret)" : "Client secret"}${app.has_secret ? " · enregistré, laissez vide pour le garder" : ""}`}>
+      <Field label={`${app.provider === "meta" ? "Clé secrète (App Secret)" : app.provider === "threads" ? "Clé secrète de l'app Threads" : "Client secret"}${app.has_secret ? " · enregistré, laissez vide pour le garder" : ""}`}>
         <input id={`sec-${app.provider}`} className="input mono" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="new-password" />
       </Field>
       <button className="btn primary" type="submit" style={{ alignSelf: "flex-start" }}>Enregistrer</button>
@@ -217,7 +231,7 @@ function StatsCard() {
   if (!data) return <Loading error={error} />;
   const save = async (patch) => {
     setLocal({ ...data, ...patch });   // la case change tout de suite ; annulée si l'enregistrement échoue
-    const r = await run(() => api.put("/admin/stats", { scopes_meta: data.scopes_meta, scopes_tiktok: data.scopes_tiktok, report_weekly: data.report_weekly, ...patch }), "Réglage enregistré");
+    const r = await run(() => api.put("/admin/stats", { scopes_meta: data.scopes_meta, scopes_tiktok: data.scopes_tiktok, scopes_threads: data.scopes_threads, linkedin_pages: data.linkedin_pages, report_weekly: data.report_weekly, ...patch }), "Réglage enregistré");
     setLocal(r || data);
   };
   return (
@@ -230,6 +244,12 @@ function StatsCard() {
       <label className="check"><input id="stats-tiktok" type="checkbox" checked={data.scopes_tiktok} onChange={(e) => save({ scopes_tiktok: e.target.checked })} />
         <span><b>TikTok : demander aussi la lecture des vidéos</b> (<span className="mono">{data.scopes.tiktok.join(", ")}</span>)<br />
           <span className="small muted">Ajoutez d'abord le produit « Display API » et la permission video.list à votre app TikTok (soumis à validation), puis reconnectez le compte. Les posts privés n'ont pas de statistiques.</span></span></label>
+      <label className="check"><input id="stats-threads" type="checkbox" checked={data.scopes_threads} onChange={(e) => save({ scopes_threads: e.target.checked })} />
+        <span><b>Threads : demander aussi la lecture des statistiques</b> (<span className="mono">{data.scopes.threads.join(", ")}</span>)<br />
+          <span className="small muted">Ajoutez d'abord cette permission au cas d'utilisation Threads de l'app, puis reconnectez le compte.</span></span></label>
+      <label className="check"><input id="opt-linkedin-pages" type="checkbox" checked={data.linkedin_pages} onChange={(e) => save({ linkedin_pages: e.target.checked })} />
+        <span><b>LinkedIn : publier aussi sur les Pages d'entreprise</b> (<span className="mono">w_organization_social, r_organization_admin</span>)<br />
+          <span className="small muted">Seulement si LinkedIn a validé votre app pour la Community Management API, sinon la connexion échouera. Puis reconnectez le compte : vos Pages apparaîtront à côté du profil.</span></span></label>
       <p className="small muted" style={{ margin: 0 }}>X : les chiffres sont lus avec la permission actuelle, mais X facture chaque lecture (quelques dixièmes de centime par post et par jour) : il faut des crédits sur votre compte développeur X.</p>
       <label className="check"><input id="stats-report" type="checkbox" checked={data.report_weekly} onChange={(e) => save({ report_weekly: e.target.checked })} />
         <span><b>Rapport de la semaine rédigé par Claude, chaque lundi matin</b><br />

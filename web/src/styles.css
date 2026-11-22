@@ -4,7 +4,7 @@
   --fg: #16211E; --muted: #5B6B66; --accent: #0E6E5C; --accent-ink: #FFFFFF; --accent-soft: #D6ECE6;
   --warn: #8A5200; --warn-soft: #FBEBD0; --bad: #B3261E; --bad-soft: #F9DEDC; --ok: #1E7A3C; --ok-soft: #DDF1E2;
   --info: #22558F; --info-soft: #DCE8F6;
-  --ig: #C13584; --fb: #1877F2; --x: #111111; --tt: #00A8A8;
+  --ig: #C13584; --fb: #1877F2; --x: #111111; --tt: #00A8A8; --th: #333333; --bs: #0A7AFF; --li: #0A66C2; --yt: #E00000;
   --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body: "Manrope", system-ui, -apple-system, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -17,7 +17,7 @@
     --fg: #E4ECE9; --muted: #93A39E; --accent: #3DBE9F; --accent-ink: #06231C; --accent-soft: #163A32;
     --warn: #F0B35A; --warn-soft: #3A2B12; --bad: #F2867E; --bad-soft: #3D1A18; --ok: #6CD38F; --ok-soft: #163222;
     --info: #8DB8EE; --info-soft: #182A40;
-    --ig: #E56AB3; --fb: #5A9BF5; --x: #E4ECE9; --tt: #3FD3D3;
+    --ig: #E56AB3; --fb: #5A9BF5; --x: #E4ECE9; --tt: #3FD3D3; --th: #CFCFCF; --bs: #4DA3FF; --li: #4A9AE0; --yt: #FF5A5A;
     color-scheme: dark;
   }
 }
@@ -98,6 +98,7 @@ button { cursor: pointer; }
 .pf.s { width: 18px; height: 18px; font-size: 8px; border-radius: 5px; }
 .pf.l { width: 40px; height: 40px; font-size: 13px; border-radius: 10px; }
 .pf.instagram { background: var(--ig); } .pf.facebook { background: var(--fb); } .pf.x { background: var(--x); color: var(--bg); } .pf.tiktok { background: var(--tt); }
+.pf.threads { background: var(--th); color: var(--bg); } .pf.bluesky { background: var(--bs); } .pf.linkedin { background: var(--li); } .pf.youtube { background: var(--yt); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); flex-wrap: wrap; }
 .seg button { border: 0; background: none; padding: 7px 12px; font-weight: 600; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
@@ -194,6 +195,7 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .hbar .track { height: 10px; background: var(--sunk); border-radius: 9px; overflow: hidden; }
 .hbar .track b { display: block; height: 100%; border-radius: 9px; }
 .hbar .instagram { background: var(--ig); } .hbar .facebook { background: var(--fb); } .hbar .x { background: var(--x); } .hbar .tiktok { background: var(--tt); }
+.hbar .threads { background: var(--th); } .hbar .bluesky { background: var(--bs); } .hbar .linkedin { background: var(--li); } .hbar .youtube { background: var(--yt); }
 
 .guide { max-width: 80ch; line-height: 1.65; }
 .guide h1 { font-size: 24px; margin: 0 0 12px; } .guide h2 { margin: 22px 0 8px; } .guide h3 { margin: 16px 0 6px; }

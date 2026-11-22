@@ -9,12 +9,17 @@ import base64
 import hashlib
 import secrets
 
-from . import meta, tiktok, x
+from . import bluesky, linkedin, meta, threads, tiktok, x, youtube
 from .base import (LABELS, PLATFORMS, PROVIDER_OF, RULES, AuthExpired, Content, MediaFile, PublishError, Result,
                    check, text_length)
 
-PROVIDERS = ("meta", "x", "tiktok")
-PROVIDER_LABELS = {"meta": "Meta (Facebook et Instagram)", "x": "X", "tiktok": "TikTok"}
+PROVIDERS = ("meta", "x", "tiktok", "threads", "linkedin", "google", "bluesky")
+PROVIDER_LABELS = {"meta": "Meta (Facebook et Instagram)", "x": "X", "tiktok": "TikTok", "threads": "Threads",
+                   "linkedin": "LinkedIn", "google": "Google (YouTube)", "bluesky": "Bluesky"}
+# Bluesky : pas d'application développeur, connexion avec le pseudo et un « mot de passe d'application ».
+NO_APP = ("bluesky",)
+# Réseaux dont le jeton d'accès est court et se renouvelle avec un jeton de renouvellement.
+REFRESHABLE = ("x", "tiktok", "threads", "bluesky", "linkedin", "youtube")
 
 __all__ = ["LABELS", "PLATFORMS", "PROVIDERS", "PROVIDER_OF", "RULES", "AuthExpired", "Content", "MediaFile",
            "PublishError", "Result", "check", "text_length"]
@@ -28,11 +33,12 @@ def pkce() -> tuple[str, str]:
 
 # Permissions de lecture des statistiques, demandées seulement si l'administrateur l'a choisi (Administration →
 # Statistiques) : un réseau refuse toute la connexion si l'application développeur ne les a pas ajoutées.
-STATS_SCOPES = {"meta": ["read_insights", "instagram_manage_insights"], "tiktok": ["video.list"]}
+STATS_SCOPES = {"meta": ["read_insights", "instagram_manage_insights"], "tiktok": ["video.list"],
+                "threads": threads.STATS_SCOPES}
 
 
 def authorize_url(provider: str, client_id: str, redirect_uri: str, state: str, verifier: str,
-                  graph_version: str, stats: bool = False) -> str:
+                  graph_version: str, stats: bool = False, pages: bool = False) -> str:
     extra = STATS_SCOPES.get(provider, []) if stats else []
     if provider == "meta":
         return meta.authorize_url(client_id, redirect_uri, state, None, graph_version, extra)
@@ -41,6 +47,12 @@ def authorize_url(provider: str, client_id: str, redirect_uri: str, state: str, 
         return x.authorize_url(client_id, redirect_uri, state, challenge)
     if provider == "tiktok":
         return tiktok.authorize_url(client_id, redirect_uri, state, extra)
+    if provider == "threads":
+        return threads.authorize_url(client_id, redirect_uri, state, extra)
+    if provider == "linkedin":
+        return linkedin.authorize_url(client_id, redirect_uri, state, linkedin.PAGE_SCOPES if pages else [])
+    if provider == "google":
+        return youtube.authorize_url(client_id, redirect_uri, state)
     raise ValueError(provider)
 
 
@@ -52,14 +64,29 @@ async def exchange(provider: str, client_id: str, secret: str | None, redirect_u
         return await x.exchange(client_id, secret, redirect_uri, code, verifier or "")
     if provider == "tiktok":
         return await tiktok.exchange(client_id, secret or "", redirect_uri, code)
+    if provider == "threads":
+        return await threads.exchange(client_id, secret or "", redirect_uri, code)
+    if provider == "linkedin":
+        return await linkedin.exchange(client_id, secret or "", redirect_uri, code)
+    if provider == "google":
+        return await youtube.exchange(client_id, secret or "", redirect_uri, code)
     raise ValueError(provider)
 
 
-async def refresh(platform: str, client_id: str, secret: str | None, refresh_token: str) -> dict:
+async def refresh(platform: str, client_id: str, secret: str | None, refresh_token: str,
+                  meta_info: dict | None = None) -> dict:
     if platform == "x":
         return await x.refresh(client_id, secret, refresh_token)
     if platform == "tiktok":
         return await tiktok.refresh(client_id, secret or "", refresh_token)
+    if platform == "threads":
+        return await threads.refresh(refresh_token)
+    if platform == "bluesky":
+        return await bluesky.refresh(refresh_token, meta_info)
+    if platform == "linkedin":
+        return await linkedin.refresh(client_id, secret or "", refresh_token)
+    if platform == "youtube":
+        return await youtube.refresh(client_id, secret or "", refresh_token)
     raise PublishError("ce réseau ne renouvelle pas ses jetons")
 
 
@@ -72,6 +99,17 @@ def demo_candidates(provider: str) -> list[dict]:
         return [one("facebook", "Page de démonstration", ""), one("instagram", "Compte démo", "compte.demo")]
     if provider == "x":
         return [one("x", "Compte démo", "compte_demo")]
+    if provider == "threads":
+        return [one("threads", "Compte démo", "compte.demo")]
+    if provider == "bluesky":
+        return [one("bluesky", "Compte démo", "compte-demo.bsky.social")]
+    if provider == "linkedin":
+        page = one("linkedin", "Page de démonstration", "")
+        page["external_id"] += "-page"
+        page["meta"] = {"kind": "page", "page_name": "Page de démonstration"}
+        return [one("linkedin", "Profil de démonstration", ""), page]
+    if provider == "google":
+        return [one("youtube", "Chaîne de démonstration", "chaine-demo")]
     return [one("tiktok", "Compte démo", "compte.demo")]
 
 
@@ -87,6 +125,14 @@ async def publish(platform: str, account: dict, content: Content, graph_version:
         return await x.publish(account, content)
     if platform == "tiktok":
         return await tiktok.publish(account, content)
+    if platform == "threads":
+        return await threads.publish(account, content)
+    if platform == "bluesky":
+        return await bluesky.publish(account, content)
+    if platform == "linkedin":
+        return await linkedin.publish(account, content)
+    if platform == "youtube":
+        return await youtube.publish(account, content)
     raise PublishError(f"réseau inconnu : {platform}")
 
 
@@ -118,4 +164,30 @@ async def metrics(platform: str, account: dict, external_id: str, graph_version:
         return await x.metrics(account, external_id)
     if platform == "tiktok":
         return await tiktok.metrics(account, external_id)
+    if platform == "threads":
+        return await threads.metrics(account, external_id)
+    if platform == "bluesky":
+        return await bluesky.metrics(account, external_id)
+    if platform == "linkedin":
+        return await linkedin.metrics(account, external_id)
+    if platform == "youtube":
+        return await youtube.metrics(account, external_id)
     raise PublishError(f"réseau inconnu : {platform}")
+
+
+async def check_token(platform: str, account: dict, graph_version: str) -> None:
+    """Vérifie que le réseau accepte encore le jeton (AuthExpired sinon)."""
+    if account.get("simulated"):
+        return
+    if platform in ("facebook", "instagram"):
+        await meta.check_token(account, graph_version)
+    elif platform == "tiktok":
+        await tiktok.creator_info(account["access_token"])
+    elif platform == "threads":
+        await threads.check_token(account)
+    elif platform == "linkedin":
+        await linkedin.check_token(account)
+    elif platform == "youtube":
+        await youtube.check_token(account)
+    elif platform == "bluesky":
+        await bluesky.metrics_ready(account)

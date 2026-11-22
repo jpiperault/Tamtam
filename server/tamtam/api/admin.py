@@ -14,6 +14,11 @@ CALLBACK_HELP = {
             "« URI de redirection OAuth valides »",
     "x": "developer.x.com → Projects & Apps → votre app → User authentication settings → Callback URI",
     "tiktok": "developers.tiktok.com → Manage apps → votre app → Login Kit → Redirect URI",
+    "threads": "developers.facebook.com → votre app Threads → Cas d'utilisation → Accéder à l'API Threads → "
+               "Paramètres → « URL de rappel de redirection »",
+    "linkedin": "linkedin.com/developers → votre app → Auth → « Authorized redirect URLs for your app »",
+    "google": "console.cloud.google.com → API et services → Identifiants → votre ID client OAuth (application Web) → "
+              "« URI de redirection autorisés »",
 }
 
 
@@ -23,6 +28,8 @@ async def list_apps(request: Request, admin=Depends(admin_user), conn=Depends(ge
     base = request.app.state.settings.public_url
     out = []
     for p in platforms.PROVIDERS:
+        if p in platforms.NO_APP:
+            continue
         r = rows.get(p)
         out.append({"provider": p, "label": platforms.PROVIDER_LABELS[p], "client_id": r["client_id"] if r else "",
                     "has_secret": bool(r and r["client_secret_enc"]), "updated_at": r["updated_at"] if r else None,
@@ -37,7 +44,7 @@ class AppIn(BaseModel):
 
 @router.put("/admin/apps/{provider}")
 async def save_app(provider: str, body: AppIn, request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
-    if provider not in platforms.PROVIDERS:
+    if provider not in platforms.PROVIDERS or provider in platforms.NO_APP:
         raise HTTPException(404, "réseau inconnu")
     vault = request.app.state.vault
     cid = body.client_id.strip()
@@ -199,22 +206,28 @@ async def test_telegram(request: Request, admin=Depends(admin_user), conn=Depend
 class StatsIn(BaseModel):
     scopes_meta: bool = False      # demander read_insights + instagram_manage_insights à la connexion
     scopes_tiktok: bool = False    # demander video.list à la connexion
+    scopes_threads: bool = False   # demander threads_manage_insights à la connexion
+    linkedin_pages: bool = False   # demander les permissions des Pages d'entreprise LinkedIn
     report_weekly: bool = False    # rapport rédigé par Claude chaque lundi
 
 
 @router.get("/admin/stats")
 async def get_stats_settings(admin=Depends(admin_user), conn=Depends(get_conn)):
     rows = {r["key"]: r["value"] for r in await fetchall(conn, "SELECT key, value FROM site_settings WHERE key IN "
-                                                               "('stats_scopes_meta','stats_scopes_tiktok','report_weekly')")}
+                                                               "('stats_scopes_meta','stats_scopes_tiktok','stats_scopes_threads',"
+                                                               "'linkedin_pages','report_weekly')")}
     return {"scopes_meta": rows.get("stats_scopes_meta") == "1", "scopes_tiktok": rows.get("stats_scopes_tiktok") == "1",
+            "scopes_threads": rows.get("stats_scopes_threads") == "1", "linkedin_pages": rows.get("linkedin_pages") == "1",
             "report_weekly": rows.get("report_weekly") == "1",
-            "scopes": {"meta": platforms.STATS_SCOPES["meta"], "tiktok": platforms.STATS_SCOPES["tiktok"]}}
+            "scopes": {k: platforms.STATS_SCOPES[k] for k in ("meta", "tiktok", "threads")}}
 
 
 @router.put("/admin/stats")
 async def save_stats_settings(body: StatsIn, admin=Depends(admin_user), conn=Depends(get_conn)):
     await _set(conn, "stats_scopes_meta", "1" if body.scopes_meta else "0")
     await _set(conn, "stats_scopes_tiktok", "1" if body.scopes_tiktok else "0")
+    await _set(conn, "stats_scopes_threads", "1" if body.scopes_threads else "0")
+    await _set(conn, "linkedin_pages", "1" if body.linkedin_pages else "0")
     await _set(conn, "report_weekly", "1" if body.report_weekly else "0")
     await conn.commit()
     return await get_stats_settings(admin, conn)

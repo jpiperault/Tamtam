@@ -1,6 +1,6 @@
 # Guide de Tamtam
 
-Tamtam publie un même message sur Instagram, Facebook, X et TikTok, chacun dans son format, et compte les visites
+Tamtam publie un même message sur Instagram, Facebook, X, TikTok, Threads, Bluesky, LinkedIn et YouTube, chacun dans son format, et compte les visites
 que chaque réseau vous ramène.
 
 ## Les mots à connaître
@@ -99,6 +99,23 @@ est cochée, les images (réduites à 1 568 px) ou les images extraites de la vi
 | Facebook | très long | facultatif : jusqu'à 10 images ou 1 vidéo | cliquable ; suivi si l'option est cochée |
 | X | 280 caractères (un lien compte pour 23) | facultatif : 4 images ou 1 vidéo | cliquable, suivi |
 | TikTok | 2 200 caractères | obligatoire : 1 vidéo, ou des photos (carrousel) | pas cliquable : mettez-le dans la bio |
+| Threads | 500 caractères | facultatif : jusqu'à 20 images et vidéos mélangées (carrousel) | cliquable, suivi |
+| Bluesky | 300 caractères (lien compris) | facultatif : 4 images ou 1 vidéo MP4 de 3 minutes au plus | cliquable, suivi |
+| LinkedIn | 3 000 caractères | facultatif : jusqu'à 20 images ou 1 vidéo | cliquable, suivi |
+| YouTube | titre de 100 caractères + description | obligatoire : 1 vidéo verticale ou carrée de 3 minutes au plus (Short) | dans la description, suivi |
+
+### Réglages YouTube (à chaque post)
+
+Quand une chaîne YouTube est choisie, un bloc **Réglages YouTube** apparaît :
+
+- **Titre** : vide, la première ligne du texte sert de titre et le reste de description. Rempli, tout le texte
+  devient la description.
+- **Visibilité** : publique, non répertoriée (visible seulement avec le lien) ou privée.
+- **Vidéo conçue pour les enfants** : déclaration exigée par YouTube. Laissez décoché si la vidéo ne vise pas les
+  enfants.
+
+YouTube en fait un Short si la vidéo est verticale ou carrée et dure 3 minutes au plus. Google limite chaque
+projet à 100 envois de vidéos par jour.
 
 ### Réglages TikTok (à chaque post)
 
@@ -170,6 +187,10 @@ Ce que chaque réseau donne :
 | Instagram | J'aime, commentaires | + vues, portée, partages, enregistrements (`instagram_manage_insights`) |
 | TikTok | rien | vues, J'aime, commentaires, partages (`video.list`) |
 | X | vues, J'aime, réponses, reposts, signets | lecture payante chez X : il faut des crédits API |
+| Threads | rien | vues, J'aime, réponses, partages (`threads_manage_insights`) |
+| Bluesky | J'aime, réponses, partages, signets | (aucune permission à ajouter) |
+| LinkedIn | rien | réservé aux apps validées pour la Community Management API |
+| YouTube | vues, J'aime, commentaires | (aucune permission à ajouter) |
 
 Un « – » veut dire que le réseau ne fournit pas ce chiffre. Une raison s'affiche sous le tableau quand un réseau
 refuse la lecture.
@@ -290,6 +311,61 @@ Page et son compte Instagram, validez. De retour dans Tamtam, cochez les comptes
 Tant que Meta n'a pas validé l'app (« App Review »), elle reste en mode développement : seules les personnes qui
 ont un rôle sur l'app peuvent connecter leurs comptes. Cela suffit pour publier sur vos propres Pages. La
 validation n'est nécessaire que pour laisser d'autres personnes connecter leurs comptes.
+
+### Configurer Threads
+
+Threads utilise une application Meta à part (pas celle de Facebook et Instagram).
+
+1. developers.facebook.com → **Créer une app** → cas d'utilisation **« Accéder à l'API Threads »**.
+2. Cas d'utilisation → Personnaliser : ajoutez `threads_basic` et `threads_content_publish` (et
+   `threads_manage_insights` si vous voulez les statistiques, voir Statistiques des réseaux).
+3. Paramètres de Threads : collez l'adresse de retour affichée dans Administration (carte Threads) dans
+   « URL de rappel de redirection ».
+4. Rôles de l'app → ajoutez votre compte Threads comme **testeur**, puis acceptez l'invitation dans l'appli Threads
+   (Réglages → Compte → Autorisations du site web). Tant que l'app n'est pas validée par Meta, seuls les testeurs
+   peuvent se connecter.
+5. Copiez l'**ID de l'app Threads** et sa **clé secrète** dans la carte Threads d'Administration.
+
+Le jeton dure 60 jours ; Tamtam le renouvelle tout seul une semaine avant l'échéance.
+
+### Configurer Bluesky
+
+Rien à faire dans Administration : sur la page Comptes, **Connecter Bluesky** demande votre pseudo et un **mot de
+passe d'application** (Bluesky → Réglages → Confidentialité et sécurité → Mots de passe d'application → Ajouter).
+Ce n'est pas votre mot de passe habituel : il ne sert qu'à Tamtam et vous pouvez le supprimer à tout moment pour
+couper l'accès. Pour publier des vidéos, l'adresse e-mail du compte Bluesky doit être vérifiée.
+
+### Configurer LinkedIn
+
+1. linkedin.com/developers → **Create app**. LinkedIn demande une Page d'entreprise associée, qui doit valider l'app
+   (lien de vérification à envoyer à un administrateur de la Page).
+2. Onglet **Products** : ajoutez « Sign In with LinkedIn using OpenID Connect » et « Share on LinkedIn ». C'est
+   immédiat.
+3. Onglet **Auth** : collez l'adresse de retour de la carte LinkedIn dans « Authorized redirect URLs for your app »,
+   puis copiez le **Client ID** et le **Primary Client Secret** dans Administration.
+
+Cela permet de publier sur **votre profil**. Publier sur une **Page d'entreprise** demande en plus la « Community
+Management API », que LinkedIn accorde sur dossier (entreprise enregistrée, adresse e-mail professionnelle). Une
+fois accordée, cochez **LinkedIn : publier aussi sur les Pages d'entreprise** (Administration → Statistiques des
+réseaux) et reconnectez le compte : vos Pages apparaissent à côté du profil.
+
+LinkedIn ne renouvelle pas l'autorisation des applications ordinaires : il faut **reconnecter le compte tous les
+60 jours**. La page Comptes affiche la date limite et Tamtam prévient par Telegram une semaine avant. LinkedIn ne
+donne pas non plus les statistiques des posts sans la Community Management API.
+
+### Configurer YouTube
+
+1. console.cloud.google.com → créez un projet → API et services → **Bibliothèque** : activez « YouTube Data API
+   v3 ».
+2. **Écran de consentement OAuth** : type « Externe », ajoutez votre adresse Google comme utilisateur test. Tant que
+   l'app reste « en test », Google retire l'autorisation au bout de 7 jours : publiez l'app (bouton « Publier
+   l'application ») pour éviter de reconnecter chaque semaine.
+3. **Identifiants** → Créer des identifiants → ID client OAuth → Application Web ; collez l'adresse de retour de la
+   carte Google (YouTube) dans « URI de redirection autorisés ».
+4. Copiez l'**ID client** et le **code secret** dans Administration.
+
+Les vidéos peuvent être publiques dès la connexion (YouTube a levé en novembre 2026 le blocage en privé des apps
+non validées).
 
 ### Claude (rédaction)
 

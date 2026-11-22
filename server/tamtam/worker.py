@@ -92,14 +92,15 @@ async def account_with_token(pool, vault, account_id: int, force_refresh: bool =
             if acc["access_token"] is None:
                 raise AuthExpired("jeton illisible (TOKEN_KEY a changé ?) : reconnectez le compte")
             soon = datetime.now(timezone.utc) + timedelta(minutes=5)
-            needs = acc["platform"] in ("x", "tiktok") and (force_refresh or (acc["expires_at"] and acc["expires_at"] < soon))
+            needs = acc["platform"] in platforms.REFRESHABLE and (force_refresh or (acc["expires_at"] and acc["expires_at"] < soon))
             if needs:
                 rt = vault.open(acc["refresh_token_enc"])
                 if not rt:
                     raise AuthExpired(f"{platforms.LABELS[acc['platform']]} : autorisation expirée, reconnectez le compte")
-                cid, secret = await credentials(conn, vault, platforms.PROVIDER_OF[acc["platform"]])
+                provider = platforms.PROVIDER_OF[acc["platform"]]
+                cid, secret = ("", None) if provider in platforms.NO_APP else await credentials(conn, vault, provider)
                 try:
-                    tok = await platforms.refresh(acc["platform"], cid, secret, rt)
+                    tok = await platforms.refresh(acc["platform"], cid, secret, rt, acc.get("meta"))
                 except PublishError as exc:
                     if exc.retry:
                         raise
@@ -163,7 +164,7 @@ async def publish_target(app, target_id: int) -> None:
             res = await asyncio.wait_for(platforms.publish(target["platform"], acc, content, s.graph_version),
                                          PUBLISH_TIMEOUT_S)
         except AuthExpired:
-            if target["platform"] not in ("x", "tiktok"):
+            if target["platform"] not in platforms.REFRESHABLE:
                 raise
             acc = await account_with_token(pool, vault, target["social_account_id"], force_refresh=True)
             res = await asyncio.wait_for(platforms.publish(target["platform"], acc, content, s.graph_version),
@@ -252,21 +253,24 @@ async def reset_interrupted(pool) -> None:
 async def check_accounts(app) -> int:
     """Vérification quotidienne des comptes connectés : un compte qui ne répond plus passe « à reconnecter » et
     déclenche une alerte, avant qu'un post programmé n'échoue. Renvoie le nombre de comptes passés en erreur."""
-    from .platforms import meta, tiktok
-
     s, pool, vault = app.state.settings, app.state.pool, app.state.vault
     async with pool.connection() as conn:
-        cur = await conn.execute("SELECT a.id, a.platform, a.name, a.handle, p.name AS project FROM social_accounts a "
+        cur = await conn.execute("SELECT a.id, a.platform, a.name, a.handle, a.expires_at, a.refresh_token_enc, "
+                                 "p.name AS project FROM social_accounts a "
                                  "JOIN projects p ON p.id=a.project_id WHERE a.status='ok' AND NOT a.simulated")
         accounts = await cur.fetchall()
     broken = 0
     for a in accounts:
         try:
-            acc = await account_with_token(pool, vault, a["id"])
-            if a["platform"] in ("facebook", "instagram"):
-                await meta.check_token(acc, s.graph_version)
-            elif a["platform"] == "tiktok":
-                await tiktok.creator_info(acc["access_token"])
+            soon = a["expires_at"] and a["expires_at"] < datetime.now(timezone.utc) + timedelta(days=7)
+            # Threads : le jeton de 60 jours se renouvelle avec lui-même ; on le fait une semaine avant l'échéance.
+            acc = await account_with_token(pool, vault, a["id"], force_refresh=bool(soon and a["platform"] == "threads"))
+            await platforms.check_token(a["platform"], acc, s.graph_version)
+            if soon and a["platform"] == "linkedin" and not a["refresh_token_enc"]:
+                days = max(0, (a["expires_at"] - datetime.now(timezone.utc)).days)
+                notify.fire(app, "accounts", notify.account_text(
+                    s.public_url, a["platform"], a["name"] or a["handle"], a["project"],
+                    f"L'autorisation LinkedIn expire dans {days} jour(s) : reconnectez le compte avant (page Comptes)."))
         except AuthExpired as exc:
             async with pool.connection() as conn:
                 await conn.execute("UPDATE social_accounts SET status='expired', last_error=%s, updated_at=now() "

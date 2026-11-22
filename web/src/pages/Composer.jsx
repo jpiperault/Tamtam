@@ -28,7 +28,7 @@ function MediaPicker({ projectId, chosen, onPick, onClose }) {
   );
 }
 
-function Preview({ account, text, media, link, project, autoCrop }) {
+function Preview({ account, text, media, link, project, autoCrop, yt }) {
   const name = account.name || project.name;
   const handle = account.handle || name;
   const first = media[0];
@@ -48,8 +48,20 @@ function Preview({ account, text, media, link, project, autoCrop }) {
         <div className="txt">{text}{link && media.length ? `\n${link}` : ""}</div>{img("wide")}
         {link && !media.length && <div className="lnk"><b>{project.url.replace(/^https?:\/\//, "") || "votre site"}</b><br />{link}</div>}</div>);
     case "x":
+    case "threads":
+    case "bluesky":
       return (<div className="mock"><div className="who">{av}<div>{name} <span>@{handle}</span></div></div>
-        <div className="txt">{text}{link ? `\n${link}` : ""}</div>{img("wide")}</div>);
+        <div className="txt">{text}{link ? `\n${link}` : ""}</div>{img("wide")}
+        {account.platform !== "x" && media.length > 1 && <div className="small muted" style={{ padding: "4px 10px 8px" }}>{media.length} médias</div>}</div>);
+    case "linkedin":
+      return (<div className="mock"><div className="who">{av}<div>{name}<br /><span>{account.meta?.kind === "page" ? "Page" : "Profil"}</span></div></div>
+        <div className="txt">{cut(`${text}${link ? `\n${link}` : ""}`, 210)}</div>{img("wide")}</div>);
+    case "youtube": {
+      const lines = text.trim().split("\n");
+      const title = (yt?.title || "").trim() || lines[0] || "Sans titre";
+      return (<div className="mock">{img("tall")}<div className="txt"><b>{title.slice(0, 100)}</b>
+        <br /><span className="muted">{name} · Short{yt?.privacy && yt.privacy !== "public" ? ` · ${yt.privacy === "unlisted" ? "non répertorié" : "privé"}` : ""}</span></div></div>);
+    }
     default:
       return (<div className="mock">{img("tall")}<div className="txt"><b>@{handle}</b> {cut(text, 150)}</div></div>);
   }
@@ -121,6 +133,30 @@ function TikTokPanel({ account, value, onChange, info, isVideo }) {
           )}
         </div>
       </>}
+    </div>
+  );
+}
+
+const YT_EMPTY = { title: "", privacy: "public", made_for_kids: false };
+
+function YouTubePanel({ account, value, onChange, text }) {
+  const o = value || YT_EMPTY;
+  const set = (patch) => onChange({ ...o, ...patch });
+  const first = text.trim().split("\n")[0] || "";
+  return (
+    <div className="tt-panel stack">
+      <div className="row" style={{ gap: 8 }}><Net platform="youtube" /><span>Chaîne <b>{account.name}</b></span></div>
+      <label className="field">Titre de la vidéo (100 caractères au plus)
+        <input className="input yt-title" maxLength={100} value={o.title} onChange={(e) => set({ title: e.target.value })} placeholder={first ? `Vide : « ${first.slice(0, 60)} »` : "Titre"} />
+        <span className="small muted" style={{ fontWeight: 400 }}>{o.title.trim() ? "Le texte du post devient la description." : "Vide : la première ligne du texte sert de titre, le reste de description."}</span>
+      </label>
+      <label className="field">Visibilité
+        <select className="select yt-privacy" value={o.privacy} onChange={(e) => set({ privacy: e.target.value })}>
+          <option value="public">Publique</option><option value="unlisted">Non répertoriée (visible avec le lien)</option><option value="private">Privée</option>
+        </select>
+      </label>
+      <label className="check"><input type="checkbox" className="yt-kids" checked={o.made_for_kids} onChange={(e) => set({ made_for_kids: e.target.checked })} />
+        <span>Vidéo conçue pour les enfants<br /><span className="small muted">Déclaration exigée par YouTube. Décochée : « Non, elle n'est pas conçue pour les enfants ».</span></span></label>
     </div>
   );
 }
@@ -231,6 +267,7 @@ export default function Composer({ editId, copyId, recycleId, date }) {
   const [claude, setClaude] = useState(false);
   const [ttOpts, setTtOpts] = useState({});
   const [ttInfo, setTtInfo] = useState({});
+  const [ytOpts, setYtOpts] = useState({});
   const [aiStatus, setAiStatus] = useState(null);
   const [link, setLink] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -278,6 +315,9 @@ export default function Composer({ editId, copyId, recycleId, date }) {
         p.targets.forEach((t) => { if (t.platform === "tiktok" && t.social_account_id) tt[t.social_account_id] = { ...TT_EMPTY, ...(t.options || {}) }; });
         // Réglages TikTok repris seulement pour modifier le même post (TikTok interdit de les pré-remplir).
         setTtOpts(editId ? tt : {});
+        const yo = {};
+        p.targets.forEach((t) => { if (t.platform === "youtube" && t.social_account_id) yo[t.social_account_id] = { ...YT_EMPTY, ...(t.options || {}) }; });
+        setYtOpts(yo);
         if (editId) {
           if (p.status === "draft") setMode(p.scheduled_at ? "at" : "draft");
           else setMode("at");
@@ -297,6 +337,7 @@ export default function Composer({ editId, copyId, recycleId, date }) {
         setMedia([]);
         setOverrides({});
         setTtOpts({});
+        setYtOpts({});
         setTab("all");
       }
     })();
@@ -333,6 +374,8 @@ export default function Composer({ editId, copyId, recycleId, date }) {
     const out = [];
     chosen.forEach((a) => out.push(...problems(rules, a.platform, textFor(a.id), kinds, hasLink)));
     ttChosen.forEach((a) => out.push(...tiktokIssues(ttOpts[a.id] || TT_EMPTY, ttInfo[a.id], kinds, media)));
+    const long = media.find((m) => m.kind === "video" && m.duration_s > 180);
+    if (long) chosen.filter((a) => a.platform === "youtube" || a.platform === "bluesky").forEach((a) => out.push(`${NETWORKS[a.platform].label} : la vidéo dure ${Math.round(long.duration_s)} s, 3 minutes au plus.`));
     return [...new Set(out)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen, body, overrides, media, link, rules, ttOpts, ttInfo]);
@@ -373,6 +416,7 @@ export default function Composer({ editId, copyId, recycleId, date }) {
       link_url: link.trim(), campaign: campaign.trim(), facebook_short_link: fbShort, auto_crop: autoCrop, mode: m,
       recycled_from: recycleId || null,
       tiktok: Object.fromEntries(ttChosen.map((a) => [String(a.id), { ...TT_EMPTY, ...(ttOpts[a.id] || {}) }])),
+      youtube: Object.fromEntries(chosen.filter((a) => a.platform === "youtube").map((a) => [String(a.id), { ...YT_EMPTY, ...(ytOpts[a.id] || {}) }])),
       scheduled_at: m === "at" || (m === "draft" && mode === "at") ? new Date(when).toISOString() : null,
     };
     setBusy(true);
@@ -541,6 +585,14 @@ export default function Composer({ editId, copyId, recycleId, date }) {
             </div>
           )}
 
+          {chosen.some((a) => a.platform === "youtube") && (
+            <div className="field">
+              <span className="label">Réglages YouTube</span>
+              {chosen.filter((a) => a.platform === "youtube").map((a) => <YouTubePanel key={a.id} account={a} text={textFor(a.id)}
+                value={ytOpts[a.id]} onChange={(v) => setYtOpts((s) => ({ ...s, [a.id]: v }))} />)}
+            </div>
+          )}
+
           {issues.length > 0 && <div className="stack" style={{ gap: 6 }}>{issues.map((t) => <div key={t} className="notice danger"><Icon name="alert" size={16} />{t}</div>)}</div>}
           {notes.length > 0 && <div className="stack" style={{ gap: 6 }}>{notes.map((t) => <div key={t} className="notice warn"><Icon name="alert" size={16} />{t}</div>)}</div>}
 
@@ -561,7 +613,7 @@ export default function Composer({ editId, copyId, recycleId, date }) {
                 <div key={a.id} className="card" style={{ padding: 14 }}>
                   <div className="pv-head"><Net platform={a.platform} />{NETWORKS[a.platform].label}
                     {bad ? <Chip tone="bad">À corriger</Chip> : <Chip tone="ok">Prêt</Chip>}</div>
-                  <Preview account={a} text={t} media={media} project={project} autoCrop={autoCrop}
+                  <Preview account={a} text={t} media={media} project={project} autoCrop={autoCrop} yt={ytOpts[a.id]}
                     link={linkFor(a.platform)} />
                 </div>
               );

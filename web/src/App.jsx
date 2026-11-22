@@ -186,7 +186,7 @@ function Authed({ me, setMe }) {
             <div className="card stack" style={{ maxWidth: 560 }}>
               <h1>Bienvenue sur Tamtam</h1>
               <p className="muted" style={{ margin: 0 }}>Commencez par créer un projet : une appli, un site ou un produit à faire connaître.
-                Chaque projet a ses propres comptes Instagram, Facebook, X et TikTok.</p>
+                Chaque projet a ses propres comptes Instagram, Facebook, X, TikTok, Threads, Bluesky, LinkedIn et YouTube.</p>
               <div><a className="btn primary" href="#/projets">Créer un projet</a></div>
             </div>
           ) : <Router route={route} />}

@@ -275,8 +275,12 @@ export const NETWORKS = {
   facebook: { label: "Facebook", short: "FB" },
   x: { label: "X", short: "X" },
   tiktok: { label: "TikTok", short: "TT" },
+  threads: { label: "Threads", short: "@" },
+  bluesky: { label: "Bluesky", short: "BS" },
+  linkedin: { label: "LinkedIn", short: "in" },
+  youtube: { label: "YouTube", short: "YT" },
 };
-export const ORDER = ["instagram", "facebook", "x", "tiktok"];
+export const ORDER = ["instagram", "facebook", "x", "tiktok", "threads", "bluesky", "linkedin", "youtube"];
 
 export function Net({ platform, size }) {
   const n = NETWORKS[platform] || { short: "?" };

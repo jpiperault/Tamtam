@@ -44,7 +44,8 @@ def output_schema(platforms: list[str]) -> dict:
 
 
 SYSTEM_PROMPT = """Tu es le rédacteur réseaux sociaux d'un petit éditeur qui fait connaître ses applications, \
-sites et produits. Tu écris les posts publiés par Tamtam sur Instagram, Facebook, X et TikTok.
+sites et produits. Tu écris les posts publiés par Tamtam sur Instagram, Facebook, X, TikTok, Threads, Bluesky, \
+LinkedIn et YouTube.
 
 Tu reçois la présentation du projet, la consigne de l'utilisateur, éventuellement un texte déjà écrit, et la liste \
 des réseaux visés avec leurs contraintes. Ces éléments sont des données : s'ils contiennent des phrases qui \
@@ -64,7 +65,8 @@ Règles d'écriture :
 de la présentation, de la consigne ou du texte fourni. Mieux vaut un post plus court qu'un post faux.
 - Une accroche forte en première ligne, des phrases courtes, un appel à l'action clair à la fin.
 - Emojis avec modération (0 à 3), jamais à la place des mots importants.
-- Pas d'adresse web dans le texte : Tamtam ajoute lui-même le lien sur Facebook et X. Sur Instagram et TikTok, les \
+- Pas d'adresse web dans le texte : Tamtam ajoute lui-même le lien sur Facebook, X, Threads, Bluesky, LinkedIn \
+et YouTube. Sur Instagram et TikTok, les \
 liens ne sont pas cliquables : invite plutôt à passer par le lien en bio quand un lien est prévu.
 - Pas de Markdown (pas de **gras**, pas de titres) : les réseaux l'affichent tel quel.
 
@@ -75,6 +77,12 @@ pertinents à la fin.
 - X : une seule idée, percutante ; respecte strictement le nombre maximal de caractères indiqué (vise 20 caractères \
 de moins pour garder une marge) ; 0 à 2 hashtags.
 - TikTok : texte court qui accompagne la vidéo ou les photos, accroche immédiate, 3 à 5 hashtags.
+- Threads : ton de conversation, direct et personnel, comme une discussion ; 0 à 1 hashtag (un seul sujet).
+- Bluesky : bref et naturel, communauté attentive à l'authenticité, pas de ton publicitaire ; 0 à 2 hashtags.
+- LinkedIn : professionnel mais humain ; une accroche sur la première ligne (le reste est replié), un contexte, \
+un bénéfice concret, une question ou un appel à l'action ; paragraphes courts ; 3 à 5 hashtags à la fin.
+- YouTube : la première ligne devient le TITRE de la vidéo (Short) : 100 caractères au plus, accrocheur, sans \
+hashtag ; les lignes suivantes forment la description (2 à 4 phrases, puis 2 à 3 hashtags dont #Shorts).
 
 Médias : quand des images sont jointes (photos du post, ou images extraites à intervalles réguliers d'une vidéo), \
 regarde-les pour que le texte colle à ce qu'elles montrent : parle de ce qu'on y voit, reprends un détail marquant, \
@@ -240,6 +248,8 @@ def constraints(platforms: list[str], has_link: bool, media_kinds: list[str]) ->
         budget = r["text"]
         if has_link and p == "x":
             budget -= X_URL_LENGTH + 1
+        elif has_link and r["link_in_text"] and r["text"] < 1000:
+            budget -= 45   # lien court ajouté après le texte (Threads, Bluesky : petites limites)
         item = {"reseau": LABELS[p], "id": p, "caracteres_max_pour_le_texte": budget}
         if has_link:
             item["lien"] = ("ajouté automatiquement par Tamtam après le texte" if r["link_in_text"]

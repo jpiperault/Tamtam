@@ -1,5 +1,23 @@
 # Journal
 
+## 1.6.0 — 22 novembre 2026
+
+- **Quatre nouveaux réseaux** :
+  - **Threads** : texte, image, vidéo ou carrousel de 20 médias ; application Threads à part ; jeton de 60 jours
+    renouvelé automatiquement.
+  - **Bluesky** : connexion avec un mot de passe d'application (pas d'application développeur), liens et hashtags
+    cliquables, 4 images ou une vidéo (service vidéo de Bluesky).
+  - **LinkedIn** : profil personnel (Share on LinkedIn) et, en option, Pages d'entreprise (Community Management
+    API) ; images, carrousel d'images, vidéo ; rappel une semaine avant l'expiration de l'autorisation (60 jours).
+  - **YouTube Shorts** : envoi reprenable, réglages par post (titre, visibilité, déclaration « pour les enfants »).
+- Statistiques lues sur Threads (option), Bluesky et YouTube. Claude connaît le style de chaque nouveau réseau
+  (le titre YouTube sur la première ligne).
+- La liste des réseaux n'est plus figée dans la base (ajout possible sans migration).
+
+Vérifié : tests d'API (publication en démonstration sur les quatre réseaux, réglages YouTube, échanges simulés avec
+les API Bluesky, LinkedIn, YouTube et Threads), écrans dans le navigateur en mode simulation. **Pas encore
+vérifié** : connexion et publication réelles sur Threads, Bluesky, LinkedIn et YouTube.
+
 ## 1.5.0 — 22 novembre 2026
 
 - **Chiffres des réseaux** dans Statistiques : vues, J'aime, commentaires, partages (et portée, enregistrements

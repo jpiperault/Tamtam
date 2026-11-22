@@ -35,6 +35,13 @@ def tiktok_problems(o: TikTokOptions) -> list[str]:
     return out
 
 
+class YouTubeOptions(BaseModel):
+    """Réglages YouTube du post. Titre vide = première ligne du texte."""
+    title: str = Field(default="", max_length=100)
+    privacy: str = Field(default="public", pattern="^(public|unlisted|private)$")
+    made_for_kids: bool = False     # déclaration obligatoire chez YouTube (loi américaine COPPA)
+
+
 class PostIn(BaseModel):
     project_id: int
     body: str = Field(default="", max_length=10000)
@@ -45,6 +52,7 @@ class PostIn(BaseModel):
     campaign: str = Field(default="", max_length=80)
     facebook_short_link: bool = False   # Facebook : lien court suivi /l/… au lieu du lien direct
     tiktok: dict[str, TikTokOptions] = Field(default_factory=dict)   # identifiant du compte TikTok → réglages
+    youtube: dict[str, YouTubeOptions] = Field(default_factory=dict)  # identifiant de la chaîne YouTube → réglages
     auto_crop: bool = False             # recadrer les images au format conseillé de chaque réseau
     recycled_from: int | None = None    # post d'origine (nouvelle version d'un ancien post)
     mode: str = Field(default="draft", pattern="^(draft|now|at|queue)$")   # queue : prochain créneau libre
@@ -62,7 +70,7 @@ async def _post_full(conn, post_id: int) -> dict | None:
                a.simulated, l.code AS link_code, COALESCE(l.clicks, 0) AS clicks
         FROM post_targets t LEFT JOIN social_accounts a ON a.id=t.social_account_id
         LEFT JOIN links l ON l.post_target_id=t.id
-        WHERE t.post_id=%s ORDER BY array_position(ARRAY['instagram','facebook','x','tiktok'], t.platform)""", (post_id,))
+        WHERE t.post_id=%s ORDER BY array_position(%s::text[], t.platform)""", (post_id, list(platforms.PLATFORMS)))
     post["media"] = [{"id": m["id"], "kind": m["kind"], "url": f"/m/{m['token']}{m['ext']}", "filename": m["filename"],
                       "duration_s": m["duration_s"], "width": m["width"], "height": m["height"]}
                      for m in await fetchall(conn, "SELECT m.* FROM post_media pm JOIN media m ON m.id=pm.media_id "
@@ -101,6 +109,10 @@ async def _validate(conn, body: PostIn, tz: str = "Europe/Paris", post_id: int |
             problems += platforms.check(a["platform"], text, kinds, bool(body.link_url))
             if a["platform"] == "tiktok":
                 problems += tiktok_problems(body.tiktok.get(str(a["id"])) or TikTokOptions())
+            if a["platform"] == "youtube":
+                yt = body.youtube.get(str(a["id"])) or YouTubeOptions()
+                if not (yt.title.strip() or text.strip()):
+                    problems.append("YouTube : donnez un titre à la vidéo.")
         if problems:
             raise HTTPException(422, " ".join(dict.fromkeys(problems)))
         if body.mode == "queue":
@@ -125,7 +137,8 @@ async def _write(conn, post_id: int, body: PostIn, accounts: list[dict], media: 
     await conn.execute("DELETE FROM post_media WHERE post_id=%s", (post_id,))
     for a in accounts:
         ov = body.overrides.get(str(a["id"]))
-        opts = body.tiktok.get(str(a["id"])) if a["platform"] == "tiktok" else None
+        opts = (body.tiktok.get(str(a["id"])) if a["platform"] == "tiktok"
+                else body.youtube.get(str(a["id"])) if a["platform"] == "youtube" else None)
         await conn.execute("INSERT INTO post_targets(post_id, social_account_id, platform, body_override, options) "
                            "VALUES (%s,%s,%s,%s,%s)", (post_id, a["id"], a["platform"],
                                                        ov if ov is not None and ov != body.body else None,

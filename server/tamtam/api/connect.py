@@ -42,7 +42,8 @@ def _back(message: str = "", ok: bool = True, choose: str = "") -> RedirectRespo
 async def providers(request: Request, user=Depends(current_user), conn=Depends(get_conn)):
     rows = {r["provider"]: r for r in await fetchall(conn, "SELECT provider, client_id FROM app_credentials")}
     return {"simulation": request.app.state.settings.simulation,
-            "providers": {p: {"label": platforms.PROVIDER_LABELS[p], "configured": bool(rows.get(p, {}).get("client_id"))}
+            "providers": {p: {"label": platforms.PROVIDER_LABELS[p],
+                              "configured": p in platforms.NO_APP or bool(rows.get(p, {}).get("client_id"))}
                           for p in platforms.PROVIDERS}}
 
 
@@ -63,6 +64,8 @@ async def start(provider: str, body: StartIn, request: Request, user=Depends(cur
         pid = await _save_pending(conn, request, body.project_id, user["id"], platforms.demo_candidates(provider))
         await conn.commit()
         return {"choose": pid}
+    if provider in platforms.NO_APP:
+        raise HTTPException(422, "Bluesky se connecte avec le pseudo et un mot de passe d'application")
     creds = await fetchone(conn, "SELECT client_id FROM app_credentials WHERE provider=%s", (provider,))
     if not creds or not creds["client_id"]:
         raise HTTPException(422, f"l'application {platforms.PROVIDER_LABELS[provider]} n'est pas encore configurée : "
@@ -73,9 +76,11 @@ async def start(provider: str, body: StartIn, request: Request, user=Depends(cur
     await conn.execute("INSERT INTO oauth_states(state, provider, project_id, user_id, code_verifier) "
                        "VALUES (%s,%s,%s,%s,%s)", (state, provider, body.project_id, user["id"], verifier))
     await conn.commit()
-    stats = await fetchone(conn, "SELECT value FROM site_settings WHERE key=%s", (f"stats_scopes_{provider}",))
+    opts = {r["key"]: r["value"] for r in await fetchall(
+        conn, "SELECT key, value FROM site_settings WHERE key IN (%s, 'linkedin_pages')", (f"stats_scopes_{provider}",))}
     url = platforms.authorize_url(provider, creds["client_id"], redirect_uri(request, provider), state, verifier,
-                                  s.graph_version, bool(stats and stats["value"] == "1"))
+                                  s.graph_version, opts.get(f"stats_scopes_{provider}") == "1",
+                                  opts.get("linkedin_pages") == "1")
     return {"url": url}
 
 
@@ -128,9 +133,32 @@ async def callback(provider: str, request: Request, conn=Depends(get_conn)):
     return _back(choose=pid)
 
 
+class BlueskyIn(BaseModel):
+    project_id: int
+    identifier: str = Field(min_length=3, max_length=253)     # pseudo (nom.bsky.social) ou adresse e-mail
+    app_password: str = Field(min_length=4, max_length=100)
+
+
+@router.post("/connect/bluesky/password")
+async def bluesky_login(body: BlueskyIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    """Bluesky : pas d'OAuth ici, un mot de passe d'application. Il sert une fois à ouvrir la session ; seuls les
+    jetons de session sont gardés (chiffrés)."""
+    await project_or_404(conn, body.project_id)
+    await conn.commit()
+    try:
+        cand = await platforms.bluesky.login(body.identifier, body.app_password)
+    except PublishError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    pid = await _save_pending(conn, request, body.project_id, user["id"], [cand])
+    await conn.commit()
+    return {"choose": pid}
+
+
 def _public(c: dict, i: int) -> dict:
+    m = c.get("meta", {})
     return {"key": i, "platform": c["platform"], "name": c["name"], "handle": c.get("handle", ""),
-            "avatar_url": c.get("avatar_url", ""), "detail": c.get("meta", {}).get("page_name", ""),
+            "avatar_url": c.get("avatar_url", ""), "detail": m.get("page_name", "") if m.get("kind") != "page" else "",
+            "kind": m.get("kind", ""),
             "simulated": bool(c.get("simulated"))}
 
 
@@ -190,8 +218,8 @@ async def choose(pid: str, body: ChooseIn, request: Request, user=Depends(curren
 async def list_accounts(project_id: int, user=Depends(current_user), conn=Depends(get_conn)):
     await project_or_404(conn, project_id)
     return await fetchall(conn, f"SELECT {ACCOUNT_COLS} FROM social_accounts WHERE project_id=%s "
-                                "ORDER BY array_position(ARRAY['instagram','facebook','x','tiktok'], platform), name",
-                          (project_id,))
+                                "ORDER BY array_position(%s::text[], platform), name",
+                          (project_id, list(platforms.PLATFORMS)))
 
 
 class AccountPatch(BaseModel):
@@ -238,16 +266,10 @@ async def tiktok_creator(account_id: int, request: Request, user=Depends(current
 @router.post("/accounts/{account_id}/test")
 async def test_account(account_id: int, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
     """Vérifie que l'autorisation est toujours valable (renouvelle le jeton X / TikTok au besoin)."""
-    from ..platforms import meta, tiktok
-
     s = request.app.state.settings
     try:
         acc = await worker.account_with_token(request.app.state.pool, request.app.state.vault, account_id)
-        if not acc["simulated"]:
-            if acc["platform"] in ("facebook", "instagram"):
-                await meta.check_token(acc, s.graph_version)
-            elif acc["platform"] == "tiktok":
-                await tiktok.creator_info(acc["access_token"])
+        await platforms.check_token(acc["platform"], acc, s.graph_version)
         await conn.execute("UPDATE social_accounts SET status='ok', last_error='' WHERE id=%s", (account_id,))
         await conn.commit()
         return {"ok": True, "message": "Autorisation valable."}
