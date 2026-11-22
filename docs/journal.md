@@ -1,5 +1,20 @@
 # Journal
 
+## 1.7.0 — 22 novembre 2026
+
+- **Boîte de réception** (nouvelle page) : commentaires reçus sous les posts publiés sur Facebook, Instagram,
+  Threads, Bluesky, YouTube et X, relevés toutes les 30 minutes ; réponse depuis Tamtam, proposée par Claude au
+  besoin (avec une consigne facultative) ; « Marquer comme traité ». Permissions de lecture et de réponse à
+  activer par réseau dans Administration (Bluesky : aucune). TikTok et LinkedIn ne le permettent pas.
+- **Validation à deux** (option) : les posts des membres passent par l'état « À valider » ; un administrateur
+  valide (le post part à l'heure prévue) ou refuse avec un commentaire (retour en brouillon).
+- Alertes Telegram : post à valider, nouveau commentaire (option).
+- Pages légales : commentaires reçus et données envoyées à Claude pour proposer une réponse.
+
+Vérifié : tests d'API (relève sans doublon, proposition avec un faux Claude, réponse, permissions demandées,
+lecture et réponse simulées sur Bluesky, Facebook, YouTube et X, validation à deux de bout en bout), écrans dans le
+navigateur en mode simulation. **Pas encore vérifié** : relève et réponse réelles sur chaque réseau.
+
 ## 1.6.0 — 22 novembre 2026
 
 - **Quatre nouveaux réseaux** :

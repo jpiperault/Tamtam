@@ -33,6 +33,9 @@ applications, sites et produits. Cette page explique quelles données il traite 
   posts une fois publiés.
 - **Statistiques des posts** lues sur les réseaux : nombres de vues, de mentions J'aime, de commentaires, de partages
   et d'enregistrements de chaque post publié par {app} (jamais l'identité des personnes).
+- **Commentaires reçus** sous les posts publiés par {app} (boîte de réception) : texte du commentaire, nom, pseudo et
+  photo de son auteur tels que le réseau les fournit, et la réponse envoyée depuis {app}. Ils sont gardés pour
+  permettre d'y répondre et supprimés avec le post ou le compte.
 - **Clics sur les liens courts** : uniquement un nombre de clics par jour. Ni adresse IP, ni cookie, ni profil des
   personnes qui cliquent ne sont conservés.
 
@@ -45,7 +48,8 @@ Elles ne sont ni vendues, ni utilisées à des fins publicitaires, ni partagées
 - **les réseaux sociaux** sur lesquels un utilisateur demande à publier, qui reçoivent le contenu du post ;
 - **Anthropic** (assistant de rédaction Claude), seulement quand un utilisateur demande une proposition de texte :
   la consigne, le texte, la présentation du projet et, si l'utilisateur l'accepte, les images du post ; pour le
-  bilan hebdomadaire, les textes des posts de la semaine et leurs chiffres (vues, mentions J'aime, commentaires…).
+  bilan hebdomadaire, les textes des posts de la semaine et leurs chiffres (vues, mentions J'aime, commentaires…) ;
+  pour proposer une réponse, le commentaire concerné, le nom affiché de son auteur et le post.
 
 ## Données TikTok
 
@@ -117,6 +121,9 @@ page explains which data it processes and why.
   once published.
 - **Post statistics** read from the networks: number of views, likes, comments, shares and saves of each post
   published by {app} (never who these people are).
+- **Comments received** under posts published by {app} (inbox): comment text, author name, username and picture as
+  provided by the network, and the reply sent from {app}. They are kept to allow replying and deleted with the post
+  or the account.
 - **Short link clicks**: only a daily click count. No IP address, cookie or profile of the people who click is kept.
 
 ## How we use it
@@ -128,7 +135,8 @@ shared only with:
 - **the social networks** a user asks to publish to, which receive the post content;
 - **Anthropic** (Claude writing assistant), only when a user asks for a text suggestion: the instructions, the text,
   the project description and, if the user agrees, the post's images; for the weekly report, the week's post texts
-  and their figures (views, likes, comments…).
+  and their figures (views, likes, comments…); to suggest a reply, the comment, its author's display name and the
+  post.
 
 ## TikTok data
 

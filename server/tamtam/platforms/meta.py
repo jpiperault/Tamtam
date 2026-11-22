@@ -247,3 +247,54 @@ async def instagram_metrics(account: dict, media_id: str, version: str) -> dict:
                            "Instagram")
             return {"views": None, "reach": None, "likes": d.get("like_count"), "comments": d.get("comments_count"),
                     "shares": None, "saves": None}
+
+
+# --- Commentaires (boîte de réception)
+
+async def facebook_comments(account: dict, post_id: str, version: str) -> list[dict]:
+    """Commentaires d'un post de Page, tous niveaux (pages_read_user_content). L'auteur peut manquer : Facebook
+    ne le donne que pour les personnes qui l'ont autorisé."""
+    g, tok = _graph(version), account["access_token"]
+    async with client(30) as c:
+        d = await _get(c, f"{g}/{post_id}/comments", {
+            "access_token": tok, "fields": "id,message,from{id,name},created_time", "filter": "stream",
+            "limit": 100}, "Facebook")
+    page = account["external_id"]
+    return [{"id": x["id"], "text": x.get("message", ""), "author_name": (x.get("from") or {}).get("name", ""),
+             "author_handle": "", "author_avatar": "", "created_at": x.get("created_time"),
+             "own": (x.get("from") or {}).get("id") == page} for x in d.get("data", [])]
+
+
+async def facebook_reply(account: dict, comment_id: str, text: str, version: str) -> str:
+    async with client(30) as c:
+        d = await _post(c, f"{_graph(version)}/{comment_id}/comments",
+                        {"message": text, "access_token": account["access_token"]}, "Facebook")
+    return d.get("id", "")
+
+
+async def instagram_comments(account: dict, media_id: str, version: str) -> list[dict]:
+    g, tok = _graph(version), account["access_token"]
+    sub = "id,text,timestamp,username,from{id,username}"
+    async with client(30) as c:
+        d = await _get(c, f"{g}/{media_id}/comments", {
+            "access_token": tok, "fields": f"{sub},replies{{{sub}}}", "limit": 50}, "Instagram")
+    me = (account.get("handle") or "").lower()
+    out = []
+
+    def one(x):
+        user = x.get("username") or (x.get("from") or {}).get("username", "")
+        return {"id": x["id"], "text": x.get("text", ""), "author_name": user, "author_handle": user,
+                "author_avatar": "", "created_at": x.get("timestamp"),
+                "own": bool(me) and user.lower() == me or (x.get("from") or {}).get("id") == account["external_id"]}
+
+    for x in d.get("data", []):
+        out.append(one(x))
+        out += [one(r) for r in (x.get("replies") or {}).get("data", [])]
+    return out
+
+
+async def instagram_reply(account: dict, comment_id: str, text: str, version: str) -> str:
+    async with client(30) as c:
+        d = await _post(c, f"{_graph(version)}/{comment_id}/replies",
+                        {"message": text, "access_token": account["access_token"]}, "Instagram")
+    return d.get("id", "")

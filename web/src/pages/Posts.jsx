@@ -8,15 +8,20 @@ const FILTERS = [
   { value: "", label: "Tout" },
   { value: "upcoming", label: "À venir" },
   { value: "problems", label: "Échecs" },
+  { value: "review", label: "À valider" },
   { value: "draft", label: "Brouillons" },
   { value: "done", label: "Publiés" },
 ];
 
 export function PostRow({ post, onChange }) {
   const run = useRun();
+  const { me } = useApp();
   const [confirm, setConfirm] = useState(false);
+  const [rejecting, setRejecting] = useState(null);
+  const approve = async () => { if (await run(() => api.post(`/posts/${post.id}/approve`), "Post validé : il partira à l'heure prévue")) onChange(); };
+  const reject = async () => { if (await run(() => api.post(`/posts/${post.id}/reject`, { note: rejecting }), "Post refusé : il redevient un brouillon")) { setRejecting(null); onChange(); } };
   const [tone, label] = POST_STATUS[post.status] || ["neutral", post.status];
-  const editable = post.status === "draft" || post.status === "scheduled";
+  const editable = post.status === "draft" || post.status === "scheduled" || post.status === "review";
   const retry = async () => {
     if (await run(() => api.post(`/posts/${post.id}/retry`), "Nouvel essai lancé")) onChange();
   };
@@ -26,7 +31,7 @@ export function PostRow({ post, onChange }) {
   return (
     <div className="post-row">
       <div className="post-when">
-        {post.status === "draft" ? "Brouillon" : fmtDateTime(post.scheduled_at)}
+        {post.status === "draft" && !post.scheduled_at ? "Brouillon" : fmtDateTime(post.scheduled_at)}
         <div style={{ marginTop: 6 }}><Chip tone={tone}>{label}</Chip></div>
       </div>
       <div className="stack" style={{ gap: 8, minWidth: 0 }}>
@@ -51,11 +56,23 @@ export function PostRow({ post, onChange }) {
           })}
           {post.targets.length === 0 && <span className="small muted">Aucun compte choisi</span>}
         </div>
+        {post.status === "review" && <div className="small muted">Proposé par {post.author || "un membre"}, en attente de validation par un administrateur.</div>}
+        {post.status === "draft" && post.review_note && <div className="notice warn small"><Icon name="alert" size={16} />Refusé : {post.review_note}</div>}
+        {rejecting !== null && (
+          <div className="stack" style={{ gap: 6 }}>
+            <textarea className="textarea reject-note" style={{ minHeight: 60 }} maxLength={1000} placeholder="Ce qu'il faut corriger (visible par l'auteur)" value={rejecting} onChange={(e) => setRejecting(e.target.value)} />
+            <div className="row"><button type="button" className="btn small danger" onClick={reject}>Refuser</button><button type="button" className="btn small" onClick={() => setRejecting(null)}>Annuler</button></div>
+          </div>
+        )}
         {post.targets.filter((t) => t.error).map((t) => (
           <div key={t.id} className="err">{NETWORKS[t.platform].label} : {t.error}{t.status === "pending" && t.not_before ? ` (nouvel essai vers ${fmtDateTime(t.not_before)})` : ""}</div>
         ))}
       </div>
       <div className="row" style={{ justifyContent: "flex-end" }}>
+        {post.status === "review" && me.is_admin && <>
+          <button type="button" className="btn small primary" onClick={approve}><Icon name="check" size={14} />Valider</button>
+          <button type="button" className="btn small" onClick={() => setRejecting("")}>Refuser</button>
+        </>}
         {editable && <a className="btn small" href={`#/nouveau/${post.id}`}><Icon name="edit" size={14} />Modifier</a>}
         {(post.status === "failed" || post.status === "partial") && <button type="button" className="btn small" onClick={retry}><Icon name="refresh" size={14} />Réessayer</button>}
         {(post.status === "done" || post.status === "partial") && <a className="btn small" href={`#/nouveau?recycle=${post.id}`} title="Republier ce post dans une nouvelle version rédigée par Claude"><Icon name="sparkle" size={14} />Recycler</a>}

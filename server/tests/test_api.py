@@ -1001,3 +1001,129 @@ def test_youtube_and_threads_unit(monkeypatch):
     _mock(monkeypatch, threads, th)
     res = asyncio.run(threads.publish({"external_id": "u1", "access_token": "t"}, Content(text="Bonjour")))
     assert res.external_id == "m1" and res.url.endswith("/post/abc")
+
+
+# --- 1.7 : validation à deux
+
+def test_two_step_approval(client, project, accounts):
+    x = accounts["x"]["id"]
+    base = {"project_id": project["id"], "body": "Proposé par un membre", "account_ids": [x], "mode": "now"}
+    ok(client.put("/api/v1/admin/approval", json={"required": True}))
+    assert ok(client.get("/api/v1/rules"))["approval_required"]
+    # un administrateur publie directement
+    assert ok(client.post("/api/v1/posts", json=base), 201)["status"] == "scheduled"
+    login(client, *MEMBER)
+    p = ok(client.post("/api/v1/posts", json=base), 201)
+    assert p["status"] == "review"
+    run_worker(client)
+    assert ok(client.get(f"/api/v1/posts/{p['id']}"))["status"] == "review"      # ne part pas
+    assert client.post(f"/api/v1/posts/{p['id']}/approve").status_code == 403     # un membre ne valide pas
+    assert [q["id"] for q in ok(client.get(f"/api/v1/posts?project_id={project['id']}&status=review"))] == [p["id"]]
+    # un brouillon reste un brouillon
+    assert ok(client.post("/api/v1/posts", json={**base, "mode": "draft"}), 201)["status"] == "draft"
+    login(client, *ADMIN)
+    r = ok(client.post(f"/api/v1/posts/{p['id']}/reject", json={"note": "Ajoutez une image"}))
+    assert r["status"] == "draft" and r["review_note"] == "Ajoutez une image"
+    login(client, *MEMBER)
+    p = ok(client.put(f"/api/v1/posts/{p['id']}", json=base))
+    assert p["status"] == "review"
+    login(client, *ADMIN)
+    assert ok(client.post(f"/api/v1/posts/{p['id']}/approve"))["status"] == "scheduled"
+    assert client.post(f"/api/v1/posts/{p['id']}/approve").status_code == 409
+    run_worker(client)
+    assert ok(client.get(f"/api/v1/posts/{p['id']}"))["status"] == "done"
+    ok(client.put("/api/v1/admin/approval", json={"required": False}))
+
+
+# --- 1.7 : boîte de réception
+
+def test_inbox_flow(client, project, accounts, monkeypatch):
+    from tamtam import ai
+
+    ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Pour les commentaires",
+                                          "account_ids": [accounts["facebook"]["id"], accounts["x"]["id"]]}), 201)
+    run_worker(client)
+    r = ok(client.post(f"/api/v1/inbox/refresh?project_id={project['id']}"))
+    assert r["new"] >= 2 and r["failed"] == 0
+    assert ok(client.post(f"/api/v1/inbox/refresh?project_id={project['id']}"))["new"] == 0   # pas de doublon
+    box = ok(client.get(f"/api/v1/inbox?project_id={project['id']}"))
+    assert box["new"] >= 2 and box["enabled"] == ["bluesky"]
+    item = box["items"][0]
+    assert item["text"] and item["post_text"]
+    # proposition de Claude (faux client)
+    fake = _FakeClaude([_claude_message({"reply": "Merci Julie ! Oui, sur Android aussi.", "note": ""})])
+    monkeypatch.setattr(ai, "get_client", lambda key: fake)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "sk-ant-test-123", "model": "claude-opus-5-5", "daily_limit": 100}))
+    sug = ok(client.post(f"/api/v1/inbox/{item['id']}/suggest", json={"instructions": "tutoie"}))
+    assert sug["reply"].startswith("Merci") and "tutoie" in fake.calls[0]["messages"][0]["content"]
+    assert fake.calls[0]["system"].startswith("Tu réponds aux commentaires")
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5"}))
+    # réponse (compte de démonstration) puis marquage
+    if item["platform"] == "x":
+        assert client.post(f"/api/v1/inbox/{item['id']}/reply", json={"text": "x" * 281}).status_code == 422
+    done = ok(client.post(f"/api/v1/inbox/{item['id']}/reply", json={"text": "Merci !"}))
+    assert done["status"] == "replied" and done["reply_text"] == "Merci !" and done["replied_by_name"]
+    other = box["items"][1]
+    assert ok(client.post(f"/api/v1/inbox/{other['id']}/status", json={"status": "done"}))["status"] == "done"
+    assert all(i["status"] == "new" for i in ok(client.get(f"/api/v1/inbox?project_id={project['id']}"))["items"])
+    # options d'Administration : permissions demandées à la connexion
+    ok(client.put("/api/v1/admin/inbox", json={"meta": True}))
+    url = ok(client.post("/api/v1/connect/meta/start", json={"project_id": project["id"]}))["url"]
+    assert "pages_manage_engagement" in url and "instagram_manage_comments" in url
+    assert "facebook" in ok(client.get(f"/api/v1/inbox?project_id={project['id']}"))["enabled"]
+    ok(client.put("/api/v1/admin/inbox", json={}))
+
+
+def test_inbox_platform_units(monkeypatch):
+    import asyncio
+    import json as _json
+
+    import httpx
+
+    from tamtam.platforms import bluesky, meta, x, youtube
+
+    def bs(req: httpx.Request):
+        if req.url.path.endswith("getPostThread"):
+            return httpx.Response(200, json={"thread": {"post": {"uri": "at://me/p/1", "cid": "c1"}, "replies": [
+                {"post": {"uri": "at://u/p/2", "cid": "c2", "author": {"did": "did:u", "handle": "u.bsky.social"},
+                          "record": {"text": "Bravo", "createdAt": "2026-11-20T10:00:00Z"}},
+                 "replies": [{"post": {"uri": "at://me/p/3", "cid": "c3", "author": {"did": "did:me"},
+                                       "record": {"text": "Merci"}}}]}]}})
+        if req.url.path.endswith("createRecord"):
+            rec = _json.loads(req.content)["record"]
+            assert rec["reply"] == {"root": {"uri": "at://me/p/1", "cid": "c1"}, "parent": {"uri": "at://u/p/2", "cid": "c2"}}
+            return httpx.Response(200, json={"uri": "at://me/p/4", "cid": "c4"})
+        return httpx.Response(404)
+
+    _mock(monkeypatch, bluesky, bs)
+    acc = {"external_id": "did:me", "access_token": "t", "meta": {}}
+    items = asyncio.run(bluesky.comments(acc, "at://me/p/1"))
+    assert [(i["text"], i["own"]) for i in items] == [("Bravo", False), ("Merci", True)]
+    assert asyncio.run(bluesky.reply(acc, items[0]["extra"], "Merci !")) == "at://me/p/4"
+
+    def fb(req: httpx.Request):
+        return httpx.Response(200, json={"data": [
+            {"id": "1_2", "message": "Super", "from": {"id": "99", "name": "Ana"}, "created_time": "2026-11-20T10:00:00+0000"},
+            {"id": "1_3", "message": "Merci", "from": {"id": "PAGE"}},
+            {"id": "1_4", "message": "Sans auteur"}]})
+
+    _mock(monkeypatch, meta, fb)
+    got = asyncio.run(meta.facebook_comments({"external_id": "PAGE", "access_token": "t"}, "1", "v24.0"))
+    assert [g["own"] for g in got] == [False, True, False] and got[0]["author_name"] == "Ana"
+
+    sent = []
+
+    def yt(req: httpx.Request):
+        sent.append(req)
+        return httpx.Response(200, json={"id": "r1"})
+
+    _mock(monkeypatch, youtube, yt)
+    assert asyncio.run(youtube.reply({"access_token": "t"}, {"thread": "TH1"}, "C2", "Merci")) == "r1"
+    assert _json.loads(sent[0].content)["snippet"]["parentId"] == "TH1"
+
+    _mock(monkeypatch, x, lambda req: httpx.Response(403, json={"title": "Forbidden"}))
+    try:
+        asyncio.run(x.reply({"access_token": "t"}, "123", "Merci"))
+        raise AssertionError("aurait dû échouer")
+    except x.PublishError as exc:
+        assert "mentionnée" in str(exc)

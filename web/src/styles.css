@@ -238,3 +238,9 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .chip.slot .btn { padding: 2px 4px; min-height: 0; }
 .campaign-post.off { opacity: .55; }
 .campaign-post details summary { cursor: pointer; color: var(--muted); }
+.nav-count.review { background: var(--warn); }
+.nav-count + .nav-count { margin-left: 4px; }
+.nav-count.info { background: var(--accent); color: var(--accent-ink, #fff); }
+.inbox-text { white-space: pre-wrap; word-break: break-word; margin-top: 4px; }
+.inbox-post a { color: inherit; }
+.inbox-reply { border-left: 3px solid var(--accent); padding-left: 10px; }

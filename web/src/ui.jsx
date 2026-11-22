@@ -112,6 +112,7 @@ const PATHS = {
       <circle cx="12" cy="12" r="1.5" />
     </>
   ),
+  chat: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />,
   sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" />,
   share: <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />,
   chart: <path d="M3 3v18h18M7 15l4-4 3 3 6-6" />,
@@ -293,6 +294,7 @@ export function Chip({ tone = "neutral", children }) {
 
 export const POST_STATUS = {
   draft: ["neutral", "Brouillon"],
+  review: ["warn", "À valider"],
   scheduled: ["info", "Programmé"],
   publishing: ["info", "En cours"],
   done: ["ok", "Publié"],

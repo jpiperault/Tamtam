@@ -132,3 +132,27 @@ async def metrics(account: dict, media_id: str) -> dict:
         shares = sum(vals.get(k) or 0 for k in ("reposts", "quotes", "shares"))
     return {"views": vals.get("views"), "reach": None, "likes": vals.get("likes"), "comments": vals.get("replies"),
             "shares": shares, "saves": None}
+
+
+# --- Réponses (boîte de réception)
+
+async def comments(account: dict, media_id: str) -> list[dict]:
+    """Toutes les réponses sous le post (threads_read_replies)."""
+    async with client(30) as c:
+        d = await _json(await c.get(f"{API}/{media_id}/conversation", params={
+            "fields": "id,text,username,timestamp,is_reply_owned_by_me,profile_picture_url", "reverse": "false",
+            "access_token": account["access_token"]}))
+    return [{"id": x["id"], "text": x.get("text", ""), "author_name": x.get("username", ""),
+             "author_handle": x.get("username", ""), "author_avatar": x.get("profile_picture_url", ""),
+             "created_at": x.get("timestamp"), "own": bool(x.get("is_reply_owned_by_me"))}
+            for x in d.get("data", [])]
+
+
+async def reply(account: dict, reply_to: str, text: str) -> str:
+    """Réponse publiée sous un commentaire (threads_manage_replies)."""
+    uid, token = account["external_id"], account["access_token"]
+    async with client(60) as c:
+        cid = await _create(c, uid, token, {"media_type": "TEXT", "text": text, "reply_to_id": reply_to})
+        await _wait(c, cid, token, 120)
+        d = await _json(await c.post(f"{API}/{uid}/threads_publish", data={"creation_id": cid, "access_token": token}))
+    return str(d.get("id", ""))

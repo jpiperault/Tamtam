@@ -4,6 +4,7 @@ import { Icon, ToastProvider, useRun } from "./ui.jsx";
 import Login from "./pages/Login.jsx";
 import Composer from "./pages/Composer.jsx";
 import Campaign from "./pages/Campaign.jsx";
+import Inbox from "./pages/Inbox.jsx";
 import Posts from "./pages/Posts.jsx";
 import Calendar from "./pages/Calendar.jsx";
 import Accounts from "./pages/Accounts.jsx";
@@ -49,6 +50,7 @@ const NAV = [
   { href: "#/nouveau", key: "nouveau", label: "Nouveau post", icon: "edit" },
   { href: "#/campagne", key: "campagne", label: "Campagne", icon: "sparkle" },
   { href: "#/", key: "", label: "Publications", icon: "list" },
+  { href: "#/boite", key: "boite", label: "Boîte de réception", icon: "chat" },
   { href: "#/calendrier", key: "calendrier", label: "Calendrier", icon: "calendar" },
   { href: "#/comptes", key: "comptes", label: "Comptes", icon: "user" },
   { href: "#/stats", key: "stats", label: "Statistiques", icon: "chart" },
@@ -66,7 +68,7 @@ function Mark() {
 }
 
 function Shell({ section, children }) {
-  const { me, projects, projectId, setProjectId, simulation, problems } = useApp();
+  const { me, projects, projectId, setProjectId, simulation, problems, toReview, inboxNew } = useApp();
   const run = useRun();
   const logout = async () => {
     await run(() => api.post("/auth/logout"));
@@ -91,6 +93,8 @@ function Shell({ section, children }) {
             <Icon name={n.icon} />
             {n.label}
             {n.key === "" && problems > 0 && <span className="nav-count" aria-label={`${problems} posts en échec`}>{problems}</span>}
+            {n.key === "boite" && inboxNew > 0 && <span className="nav-count info" aria-label={`${inboxNew} commentaires à traiter`}>{inboxNew}</span>}
+            {n.key === "" && toReview > 0 && <span className="nav-count review" aria-label={`${toReview} posts à valider`} title="Posts à valider">{toReview}</span>}
           </a>
         ))}
         <div className="nav-foot">
@@ -121,6 +125,8 @@ function Router({ route }) {
         recycleId={params.get("recycle") ? Number(params.get("recycle")) : null} date={params.get("date")} />;
     case "campagne":
       return <Campaign />;
+    case "boite":
+      return <Inbox />;
     case "calendrier":
       return <Calendar />;
     case "comptes":
@@ -148,6 +154,8 @@ function Authed({ me, setMe }) {
   const [rules, setRules] = useState(null);
   const [simulation, setSimulation] = useState(false);
   const [problems, setProblems] = useState(0);
+  const [toReview, setToReview] = useState(0);
+  const [inboxNew, setInboxNew] = useState(0);
 
   const refreshProjects = useCallback(() => api.get("/projects").then((list) => {
     setProjects(list);
@@ -172,11 +180,13 @@ function Authed({ me, setMe }) {
   }, [refreshProjects]);
   useEffect(() => {
     if (projectId) api.get(`/posts?project_id=${projectId}&status=problems&limit=50`).then((r) => setProblems(r.length)).catch(() => {});
+    if (projectId) api.get(`/inbox?project_id=${projectId}&status=new`).then((r) => setInboxNew(r.new)).catch(() => {});
+    if (projectId && me.is_admin) api.get(`/posts?project_id=${projectId}&status=review&limit=50`).then((r) => setToReview(r.length)).catch(() => {});
   }, [projectId, hash]);
 
   if (projects === null || rules === null) return <div className="empty">Chargement…</div>;
   const project = projects.find((p) => p.id === projectId) || null;
-  const ctx = { me, setMe, projects, project, projectId, setProjectId, refreshProjects, rules, simulation, problems };
+  const ctx = { me, setMe, projects, project, projectId, setProjectId, refreshProjects, rules, simulation, problems, toReview, inboxNew };
   const needsProject = !project && !["projets", "admin", "profil", "aide"].includes(route.section);
   return (
     <AppCtx.Provider value={ctx}>

@@ -14,8 +14,9 @@ from .platforms.base import LABELS, client
 _log = log.get("notify")
 API = "https://api.telegram.org"
 KINDS = {"failures": "alert_failures", "accounts": "alert_accounts", "success": "alert_success",
-         "report": "alert_report"}
-DEFAULTS = {"alert_failures": "1", "alert_accounts": "1", "alert_success": "0", "alert_report": "1"}
+         "report": "alert_report", "approval": "alert_approval", "inbox": "alert_inbox"}
+DEFAULTS = {"alert_failures": "1", "alert_accounts": "1", "alert_success": "0", "alert_report": "1",
+            "alert_approval": "1", "alert_inbox": "0"}
 _tasks: set[asyncio.Task] = set()
 
 

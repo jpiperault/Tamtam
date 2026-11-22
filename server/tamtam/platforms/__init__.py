@@ -35,11 +35,18 @@ def pkce() -> tuple[str, str]:
 # Statistiques) : un réseau refuse toute la connexion si l'application développeur ne les a pas ajoutées.
 STATS_SCOPES = {"meta": ["read_insights", "instagram_manage_insights"], "tiktok": ["video.list"],
                 "threads": threads.STATS_SCOPES}
+# Boîte de réception : permissions de lecture et de réponse aux commentaires (option dans Administration).
+INBOX_SCOPES = {"meta": ["pages_read_user_content", "pages_manage_engagement", "instagram_manage_comments"],
+                "threads": ["threads_read_replies", "threads_manage_replies"],
+                "google": ["https://www.googleapis.com/auth/youtube.force-ssl"],
+                "x": []}
+# Réseaux dont Tamtam sait lire les commentaires ; Bluesky toujours, les autres si l'option est cochée.
+INBOX = ("facebook", "instagram", "threads", "bluesky", "youtube", "x")
 
 
 def authorize_url(provider: str, client_id: str, redirect_uri: str, state: str, verifier: str,
-                  graph_version: str, stats: bool = False, pages: bool = False) -> str:
-    extra = STATS_SCOPES.get(provider, []) if stats else []
+                  graph_version: str, stats: bool = False, pages: bool = False, inbox: bool = False) -> str:
+    extra = (STATS_SCOPES.get(provider, []) if stats else []) + (INBOX_SCOPES.get(provider, []) if inbox else [])
     if provider == "meta":
         return meta.authorize_url(client_id, redirect_uri, state, None, graph_version, extra)
     if provider == "x":
@@ -52,7 +59,7 @@ def authorize_url(provider: str, client_id: str, redirect_uri: str, state: str, 
     if provider == "linkedin":
         return linkedin.authorize_url(client_id, redirect_uri, state, linkedin.PAGE_SCOPES if pages else [])
     if provider == "google":
-        return youtube.authorize_url(client_id, redirect_uri, state)
+        return youtube.authorize_url(client_id, redirect_uri, state, extra)
     raise ValueError(provider)
 
 
@@ -191,3 +198,56 @@ async def check_token(platform: str, account: dict, graph_version: str) -> None:
         await youtube.check_token(account)
     elif platform == "bluesky":
         await bluesky.metrics_ready(account)
+
+
+def simulated_comments(external_id: str) -> list[dict]:
+    """Commentaires factices et stables (mode simulation)."""
+    import hashlib
+
+    n = int(hashlib.sha256(external_id.encode()).hexdigest()[:2], 16) % 3
+    samples = [("Julie", "julie.m", "Trop bien ! Elle est disponible sur Android ?"),
+               ("Marc", "marc_dev", "Je l'utilise depuis une semaine, le mode sombre est top."),
+               ("Sofia", "sofia", "Combien ça coûte ?")]
+    return [{"id": f"{external_id}-c{i}", "text": t, "author_name": a, "author_handle": h, "author_avatar": "",
+             "created_at": None, "own": False} for i, (a, h, t) in enumerate(samples[:n + 1])]
+
+
+async def comments(platform: str, account: dict, external_id: str, graph_version: str) -> list[dict]:
+    """Commentaires sous un post publié : [{id, text, author_name, author_handle, author_avatar, created_at, own,
+    extra}]."""
+    if account.get("simulated"):
+        return simulated_comments(external_id)
+    if platform == "facebook":
+        return await meta.facebook_comments(account, external_id, graph_version)
+    if platform == "instagram":
+        return await meta.instagram_comments(account, external_id, graph_version)
+    if platform == "threads":
+        return await threads.comments(account, external_id)
+    if platform == "bluesky":
+        return await bluesky.comments(account, external_id)
+    if platform == "youtube":
+        return await youtube.comments(account, external_id)
+    if platform == "x":
+        return await x.comments(account, external_id)
+    raise PublishError(f"{LABELS.get(platform, platform)} ne permet pas de lire les commentaires")
+
+
+async def reply(platform: str, account: dict, item: dict, text: str, graph_version: str) -> str:
+    """Répond au commentaire `item` (ligne de inbox_items) ; renvoie l'identifiant de la réponse."""
+    if account.get("simulated"):
+        await asyncio.sleep(0.3)
+        return f"demo-reply-{secrets.token_hex(4)}"
+    cid, extra = item["external_id"], item.get("extra") or {}
+    if platform == "facebook":
+        return await meta.facebook_reply(account, cid, text, graph_version)
+    if platform == "instagram":
+        return await meta.instagram_reply(account, cid, text, graph_version)
+    if platform == "threads":
+        return await threads.reply(account, cid, text)
+    if platform == "bluesky":
+        return await bluesky.reply(account, extra, text)
+    if platform == "youtube":
+        return await youtube.reply(account, extra, cid, text)
+    if platform == "x":
+        return await x.reply(account, cid, text)
+    raise PublishError(f"{LABELS.get(platform, platform)} ne permet pas de répondre depuis Tamtam")

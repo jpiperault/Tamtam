@@ -155,6 +155,44 @@ cette étape.
 
 Une campagne compte pour une seule rédaction dans la limite quotidienne de Claude.
 
+## Boîte de réception
+
+Page **Boîte de réception** : les commentaires reçus sous vos posts publiés, tous réseaux confondus, au même endroit.
+Tamtam les relève toutes les 30 minutes (posts publiés depuis moins de 30 jours) ; **Relever** le fait tout de suite.
+Le nombre de commentaires à traiter s'affiche dans le menu.
+
+Pour chaque commentaire :
+
+- **Proposer avec Claude** : Claude écrit une réponse courte, dans la langue du commentaire, sans rien inventer (s'il
+  ne connaît pas la réponse, il propose de revenir vers la personne et vous le signale). Une consigne facultative
+  l'oriente (« tutoie », « remercie et propose un code promo »…). Chaque proposition compte pour une rédaction.
+- Corrigez si besoin, puis **Répondre** : la réponse est publiée sous le commentaire, sur le réseau.
+- **Marquer comme traité** pour les commentaires qui n'appellent pas de réponse (filtre « Traités »).
+
+Réseaux relevés :
+
+| Réseau | Ce qu'il faut |
+|---|---|
+| Bluesky | rien, toujours relevé |
+| Facebook, Instagram | option cochée (Administration → Boîte de réception), permissions `pages_read_user_content`, `pages_manage_engagement`, `instagram_manage_comments` ajoutées à l'app Meta, comptes reconnectés. Facebook ne donne pas toujours le nom de l'auteur. |
+| Threads | option cochée, permissions `threads_read_replies` et `threads_manage_replies` ajoutées à l'app Threads, compte reconnecté |
+| YouTube | option cochée et chaîne reconnectée. Une réponse coûte 50 unités du quota quotidien (10 000). |
+| X | option cochée. X facture chaque commentaire lu, ne remonte que les 7 derniers jours, et refuse souvent les réponses d'une application (seulement si l'auteur vous a mentionné) : répondez alors depuis X. |
+| TikTok, LinkedIn | impossible : ces réseaux ne donnent pas accès aux commentaires |
+
+## Validation à deux
+
+Option dans **Administration → Utilisateurs** : les posts des **membres** attendent l'accord d'un administrateur.
+
+- Le membre écrit son post comme d'habitude, choisit « Maintenant », une date ou le prochain créneau, puis
+  **Envoyer pour validation**. Le post apparaît dans Publications avec l'état « À valider ».
+- Les administrateurs voient le nombre de posts à valider dans le menu (et reçoivent une alerte Telegram si elle
+  est cochée). Dans Publications → **À valider** :
+  - **Valider** : le post part à l'heure prévue, ou tout de suite si elle est passée ;
+  - **Refuser** avec un commentaire : le post redevient un brouillon et l'auteur voit la raison.
+- Le membre corrige le brouillon et le renvoie. Un post déjà validé qu'un membre modifie repasse en validation.
+- Les posts des administrateurs partent directement. Les campagnes d'un membre passent aussi en validation.
+
 ## Calendrier
 
 La semaine affiche les posts programmés, publiés et les brouillons datés (bord en pointillés). « + Programmer »
@@ -392,7 +430,8 @@ développeurs.
 
 Tamtam peut vous prévenir sur Telegram quand un post échoue (après ses nouveaux essais automatiques), quand un compte
 doit être reconnecté (vérifié aussi une fois par jour), quand le bilan du lundi est prêt (il est alors envoyé en
-entier), et, si vous le voulez, quand un post est publié.
+entier), quand un membre propose un post à valider, et, si vous le voulez, quand un post est publié ou qu'un
+nouveau commentaire arrive.
 
 1. Dans Telegram, ouvrez **@BotFather**, envoyez `/newbot`, choisissez un nom : il vous donne un jeton.
 2. Administration → **Alertes Telegram** : collez le jeton, **Enregistrer**.

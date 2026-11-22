@@ -256,6 +256,7 @@ const RECYCLE_INSTRUCTIONS = "Ce post a déjà été publié et a bien marché. 
 
 export default function Composer({ editId, copyId, recycleId, date }) {
   const { project, projectId, rules, me } = useApp();
+  const review = rules.approval_required && !me?.is_admin;
   const run = useRun();
   const toast = useToast();
   const [accounts, setAccounts] = useState(null);
@@ -421,9 +422,9 @@ export default function Composer({ editId, copyId, recycleId, date }) {
     };
     setBusy(true);
     const r = await run(() => (editId ? api.put(`/posts/${editId}`, payload) : api.post("/posts", payload)),
-      m === "draft" ? "Brouillon enregistré" : m === "queue" ? "Post ajouté à la file : il partira au prochain créneau libre" : m === "now" ? `Envoi lancé : suivez-le dans Publications${ttChosen.length ? ". TikTok peut mettre quelques minutes à traiter le post avant qu'il apparaisse sur votre profil" : ""}` : "Post programmé");
+      m === "draft" ? "Brouillon enregistré" : review ? "Post envoyé pour validation : un administrateur doit l'accepter avant qu'il parte" : m === "queue" ? "Post ajouté à la file : il partira au prochain créneau libre" : m === "now" ? `Envoi lancé : suivez-le dans Publications${ttChosen.length ? ". TikTok peut mettre quelques minutes à traiter le post avant qu'il apparaisse sur votre profil" : ""}` : "Post programmé");
     setBusy(false);
-    if (r) window.location.hash = m === "draft" ? "#/?status=draft" : "#/";
+    if (r) window.location.hash = m === "draft" ? "#/?status=draft" : review ? "#/?status=review" : "#/";
   };
 
   const openClaude = async () => {
@@ -596,11 +597,12 @@ export default function Composer({ editId, copyId, recycleId, date }) {
           {issues.length > 0 && <div className="stack" style={{ gap: 6 }}>{issues.map((t) => <div key={t} className="notice danger"><Icon name="alert" size={16} />{t}</div>)}</div>}
           {notes.length > 0 && <div className="stack" style={{ gap: 6 }}>{notes.map((t) => <div key={t} className="notice warn"><Icon name="alert" size={16} />{t}</div>)}</div>}
 
+          {review && <p className="small muted" style={{ margin: 0 }}>Validation à deux : un administrateur doit accepter ce post avant qu'il parte {mode === "now" ? "(il partira dès la validation)" : "(à l'heure choisie, ou dès la validation si elle est passée)"}.</p>}
           {ttChosen.length > 0 && <TikTokConsent options={ttChosen.map((a) => ttOpts[a.id])} />}
           <div className="actions">
             <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>Enregistrer le brouillon</button>
             <button type="button" className="btn primary" disabled={busy || issues.length > 0 || chosen.length === 0 || uploading > 0}
-              onClick={() => save(false)}>{mode === "now" ? `Publier sur ${chosen.length} compte${chosen.length > 1 ? "s" : ""}` : mode === "queue" ? "Ajouter à la file" : "Programmer"}</button>
+              onClick={() => save(false)}>{review ? "Envoyer pour validation" : mode === "now" ? `Publier sur ${chosen.length} compte${chosen.length > 1 ? "s" : ""}` : mode === "queue" ? "Ajouter à la file" : "Programmer"}</button>
           </div>
         </div>
 

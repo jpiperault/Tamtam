@@ -17,6 +17,8 @@ réseau ramène des visites.
   publication** par projet ; **recyclage** des posts qui ont marché ; **recadrage** des images par réseau.
 - **Statistiques des réseaux** (vues, J'aime, commentaires, partages par post) et **bilan hebdomadaire** rédigé
   par Claude.
+- **Boîte de réception** des commentaires avec réponses proposées par Claude, **validation à deux** (un membre
+  propose, un administrateur valide).
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 

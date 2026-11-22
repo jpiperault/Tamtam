@@ -221,3 +221,46 @@ async def metrics_ready(account: dict) -> None:
         r = await c.get(f"{pds}/xrpc/com.atproto.server.getSession",
                         headers={"Authorization": f"Bearer {account['access_token']}"})
     _check(r)
+
+
+# --- Réponses (boîte de réception)
+
+async def comments(account: dict, uri: str) -> list[dict]:
+    """Réponses sous le post, à tous les niveaux (lecture publique, sans permission)."""
+    async with client(30) as c:
+        r = await c.get(f"{APPVIEW}/xrpc/app.bsky.feed.getPostThread", params={"uri": uri, "depth": 10})
+    thread = _check(r).get("thread") or {}
+    root = thread.get("post") or {}
+    root_ref = {"uri": root.get("uri", uri), "cid": root.get("cid", "")}
+    out = []
+
+    def walk(node):
+        for rep in node.get("replies") or []:
+            p = rep.get("post")
+            if not p:
+                continue
+            a = p.get("author") or {}
+            out.append({"id": p["uri"], "text": (p.get("record") or {}).get("text", ""),
+                        "author_name": a.get("displayName") or a.get("handle", ""), "author_handle": a.get("handle", ""),
+                        "author_avatar": a.get("avatar", ""), "created_at": (p.get("record") or {}).get("createdAt"),
+                        "own": a.get("did") == account["external_id"],
+                        "extra": {"uri": p["uri"], "cid": p.get("cid", ""), "root": root_ref}})
+            walk(rep)
+
+    walk(thread)
+    return out
+
+
+async def reply(account: dict, extra: dict, text: str) -> str:
+    pds = (account.get("meta") or {}).get("pds") or DEFAULT_PDS
+    record = {"$type": "app.bsky.feed.post", "text": text,
+              "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "reply": {"root": extra["root"], "parent": {"uri": extra["uri"], "cid": extra["cid"]}}}
+    f = facets(text)
+    if f:
+        record["facets"] = f
+    async with client(30) as c:
+        r = await c.post(f"{pds}/xrpc/com.atproto.repo.createRecord",
+                         headers={"Authorization": f"Bearer {account['access_token']}"},
+                         json={"repo": account["external_id"], "collection": "app.bsky.feed.post", "record": record})
+    return _check(r)["uri"]

@@ -77,10 +77,11 @@ async def start(provider: str, body: StartIn, request: Request, user=Depends(cur
                        "VALUES (%s,%s,%s,%s,%s)", (state, provider, body.project_id, user["id"], verifier))
     await conn.commit()
     opts = {r["key"]: r["value"] for r in await fetchall(
-        conn, "SELECT key, value FROM site_settings WHERE key IN (%s, 'linkedin_pages')", (f"stats_scopes_{provider}",))}
+        conn, "SELECT key, value FROM site_settings WHERE key IN (%s, %s, 'linkedin_pages')",
+        (f"stats_scopes_{provider}", f"inbox_{provider}"))}
     url = platforms.authorize_url(provider, creds["client_id"], redirect_uri(request, provider), state, verifier,
                                   s.graph_version, opts.get(f"stats_scopes_{provider}") == "1",
-                                  opts.get("linkedin_pages") == "1")
+                                  opts.get("linkedin_pages") == "1", opts.get(f"inbox_{provider}") == "1")
     return {"url": url}
 
 

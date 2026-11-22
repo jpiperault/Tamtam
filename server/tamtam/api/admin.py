@@ -137,6 +137,8 @@ class TelegramIn(BaseModel):
     accounts: bool = True
     success: bool = False
     report: bool = True
+    approval: bool = True
+    inbox: bool = False
 
 
 @router.put("/admin/telegram")
@@ -231,3 +233,47 @@ async def save_stats_settings(body: StatsIn, admin=Depends(admin_user), conn=Dep
     await _set(conn, "report_weekly", "1" if body.report_weekly else "0")
     await conn.commit()
     return await get_stats_settings(admin, conn)
+
+
+# --- Validation à deux
+
+class ApprovalIn(BaseModel):
+    required: bool
+
+
+@router.get("/admin/approval")
+async def get_approval(admin=Depends(admin_user), conn=Depends(get_conn)):
+    rows = await fetchall(conn, "SELECT value FROM site_settings WHERE key='approval_required'")
+    return {"required": bool(rows and rows[0]["value"] == "1")}
+
+
+@router.put("/admin/approval")
+async def save_approval(body: ApprovalIn, admin=Depends(admin_user), conn=Depends(get_conn)):
+    await _set(conn, "approval_required", "1" if body.required else "0")
+    await conn.commit()
+    return {"required": body.required}
+
+
+# --- Boîte de réception : permissions demandées à la connexion
+
+class InboxIn(BaseModel):
+    meta: bool = False
+    threads: bool = False
+    google: bool = False
+    x: bool = False
+
+
+@router.get("/admin/inbox")
+async def get_inbox_settings(admin=Depends(admin_user), conn=Depends(get_conn)):
+    rows = {r["key"]: r["value"] for r in await fetchall(conn, "SELECT key, value FROM site_settings WHERE key IN "
+                                                               "('inbox_meta','inbox_threads','inbox_google','inbox_x')")}
+    return {**{k: rows.get(f"inbox_{k}") == "1" for k in ("meta", "threads", "google", "x")},
+            "scopes": platforms.INBOX_SCOPES}
+
+
+@router.put("/admin/inbox")
+async def save_inbox_settings(body: InboxIn, admin=Depends(admin_user), conn=Depends(get_conn)):
+    for k in ("meta", "threads", "google", "x"):
+        await _set(conn, f"inbox_{k}", "1" if getattr(body, k) else "0")
+    await conn.commit()
+    return await get_inbox_settings(admin, conn)

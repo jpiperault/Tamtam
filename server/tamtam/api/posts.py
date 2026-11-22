@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from .. import platforms, slots, worker
-from .common import current_user, fetchall, fetchone, get_conn, project_or_404
+from .. import notify, platforms, slots, worker
+from .common import admin_user, current_user, fetchall, fetchone, get_conn, project_or_404
 
 router = APIRouter()
 
@@ -147,6 +147,23 @@ async def _write(conn, post_id: int, body: PostIn, accounts: list[dict], media: 
         await conn.execute("INSERT INTO post_media(post_id, media_id, position) VALUES (%s,%s,%s)", (post_id, m["id"], i))
 
 
+async def approval_required(conn) -> bool:
+    row = await fetchone(conn, "SELECT value FROM site_settings WHERE key='approval_required'")
+    return bool(row and row["value"] == "1")
+
+
+async def _needs_review(conn, user: dict, body: PostIn) -> bool:
+    """Validation à deux : un membre (non administrateur) ne publie pas directement si l'option est active."""
+    return body.mode != "draft" and not user["is_admin"] and await approval_required(conn)
+
+
+def _review_alert(request: Request, post_id: int, author: str, project: str, body: str) -> None:
+    s = request.app.state.settings
+    excerpt = (body.strip().splitlines() or ["(texte adapté par réseau)"])[0][:140]
+    notify.fire(request.app, "approval", f"📝 Tamtam : {author} propose un post pour {project}, à valider.\n"
+                                         f"« {excerpt} »\n{s.public_url}/#/?status=review")
+
+
 def _sched(body: PostIn) -> tuple[str, datetime | None]:
     if body.mode == "draft":
         return "draft", body.scheduled_at
@@ -159,6 +176,9 @@ def _sched(body: PostIn) -> tuple[str, datetime | None]:
 async def create_post(body: PostIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
     accounts, media = await _validate(conn, body, request.app.state.settings.timezone)
     status, when = _sched(body)
+    review = await _needs_review(conn, user, body)
+    if review:
+        status = "review"
     row = await fetchone(conn, "INSERT INTO posts(project_id, created_by, body, link_url, campaign, facebook_short_link, "
                                "auto_crop, recycled_from, scheduled_at, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                                "RETURNING id",
@@ -166,6 +186,9 @@ async def create_post(body: PostIn, request: Request, user=Depends(current_user)
                           body.facebook_short_link, body.auto_crop, body.recycled_from, when, status))
     await _write(conn, row["id"], body, accounts, media)
     await conn.commit()
+    if review:
+        project = await project_or_404(conn, body.project_id)
+        _review_alert(request, row["id"], user["name"] or user["email"], project["name"], body.body)
     return await _post_full(conn, row["id"])
 
 
@@ -174,15 +197,54 @@ async def update_post(post_id: int, body: PostIn, request: Request, user=Depends
     post = await fetchone(conn, "SELECT * FROM posts WHERE id=%s FOR UPDATE", (post_id,))
     if not post:
         raise HTTPException(404, "post introuvable")
-    if post["status"] not in ("draft", "scheduled") or post["project_id"] != body.project_id:
+    if post["status"] not in ("draft", "scheduled", "review") or post["project_id"] != body.project_id:
         raise HTTPException(409, "ce post est déjà en cours de publication ou publié : dupliquez-le pour le modifier")
     accounts, media = await _validate(conn, body, request.app.state.settings.timezone, post_id)
     status, when = _sched(body)
+    review = await _needs_review(conn, user, body)
+    if review:
+        status = "review"
     await conn.execute("UPDATE posts SET body=%s, link_url=%s, campaign=%s, facebook_short_link=%s, auto_crop=%s, "
                        "scheduled_at=%s, status=%s, updated_at=now() WHERE id=%s",
                        (body.body, body.link_url.strip(), body.campaign.strip(), body.facebook_short_link,
                         body.auto_crop, when, status, post_id))
     await _write(conn, post_id, body, accounts, media)
+    await conn.commit()
+    if review and post["status"] != "review":
+        project = await project_or_404(conn, body.project_id)
+        _review_alert(request, post_id, user["name"] or user["email"], project["name"], body.body)
+    return await _post_full(conn, post_id)
+
+
+class RejectIn(BaseModel):
+    note: str = Field(default="", max_length=1000)
+
+
+@router.post("/posts/{post_id}/approve")
+async def approve_post(post_id: int, user=Depends(admin_user), conn=Depends(get_conn)):
+    """Validation par un administrateur : le post part à l'heure prévue (tout de suite si elle est passée)."""
+    post = await fetchone(conn, "SELECT status FROM posts WHERE id=%s FOR UPDATE", (post_id,))
+    if not post:
+        raise HTTPException(404, "post introuvable")
+    if post["status"] != "review":
+        raise HTTPException(409, "ce post n'attend pas de validation")
+    await conn.execute("UPDATE posts SET status='scheduled', scheduled_at=GREATEST(COALESCE(scheduled_at, now()), now()), "
+                       "review_note='', reviewed_by=%s, reviewed_at=now(), updated_at=now() WHERE id=%s",
+                       (user["id"], post_id))
+    await conn.commit()
+    return await _post_full(conn, post_id)
+
+
+@router.post("/posts/{post_id}/reject")
+async def reject_post(post_id: int, body: RejectIn, user=Depends(admin_user), conn=Depends(get_conn)):
+    """Refus : le post redevient un brouillon, avec la raison, pour que son auteur le corrige."""
+    post = await fetchone(conn, "SELECT status FROM posts WHERE id=%s FOR UPDATE", (post_id,))
+    if not post:
+        raise HTTPException(404, "post introuvable")
+    if post["status"] != "review":
+        raise HTTPException(409, "ce post n'attend pas de validation")
+    await conn.execute("UPDATE posts SET status='draft', review_note=%s, reviewed_by=%s, reviewed_at=now(), "
+                       "updated_at=now() WHERE id=%s", (body.note.strip() or "Refusé sans commentaire.", user["id"], post_id))
     await conn.commit()
     return await _post_full(conn, post_id)
 
@@ -198,6 +260,8 @@ async def list_posts(project_id: int | None = None, status: str | None = None, s
         where.append("status IN ('scheduled','publishing')")
     elif status == "problems":
         where.append("status IN ('failed','partial')")
+    elif status == "review":
+        where.append("status='review'")
     elif status:
         where.append("status=%s")
         params.append(status)
@@ -252,8 +316,9 @@ async def delete_post(post_id: int, user=Depends(current_user), conn=Depends(get
 
 
 @router.get("/rules")
-async def rules(request: Request, user=Depends(current_user)):
-    return {"rules": platforms.RULES, "labels": platforms.LABELS, "x_url_length": platforms.base.X_URL_LENGTH,
+async def rules(request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    return {"approval_required": await approval_required(conn),
+            "rules": platforms.RULES, "labels": platforms.LABELS, "x_url_length": platforms.base.X_URL_LENGTH,
             "public_url": request.app.state.settings.public_url, "timezone": request.app.state.settings.timezone}
 
 
@@ -272,7 +337,7 @@ async def stats(project_id: int | None = None, days: int = 30, user=Depends(curr
     counts = await fetchone(conn, f"""
         SELECT count(*) FILTER (WHERE t.status='published' AND t.published_at >= now() - make_interval(days => %s))::int AS published,
                count(*) FILTER (WHERE t.status='failed' AND t.updated_at >= now() - make_interval(days => %s))::int AS failed,
-               count(*) FILTER (WHERE t.status IN ('pending','publishing') AND p.status <> 'draft')::int AS upcoming
+               count(*) FILTER (WHERE t.status IN ('pending','publishing') AND p.status NOT IN ('draft','review'))::int AS upcoming
         FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE true {qf}""", [days, days] + qp)
     top = await fetchall(conn, f"""
         SELECT p.id, left(p.body, 140) AS body, sum(c.clicks)::int AS clicks, min(t.published_at) AS published_at

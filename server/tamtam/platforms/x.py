@@ -136,3 +136,38 @@ async def metrics(account: dict, tweet_id: str) -> dict:
         shares = (m.get("retweet_count") or 0) + (m.get("quote_count") or 0)
     return {"views": m.get("impression_count"), "reach": None, "likes": m.get("like_count"),
             "comments": m.get("reply_count"), "shares": shares, "saves": m.get("bookmark_count")}
+
+
+# --- Réponses (boîte de réception)
+
+async def comments(account: dict, tweet_id: str) -> list[dict]:
+    """Réponses des 7 derniers jours (recherche récente, lecture payante chez X)."""
+    headers = {"Authorization": f"Bearer {account['access_token']}"}
+    async with client(30) as c:
+        r = await c.get(f"{API}/tweets/search/recent", headers=headers, params={
+            "query": f"conversation_id:{tweet_id}", "max_results": 100, "expansions": "author_id",
+            "tweet.fields": "created_at,author_id", "user.fields": "name,username,profile_image_url"})
+    if r.status_code != 200:
+        raise api_error(r, "X")
+    d = r.json()
+    users = {u["id"]: u for u in (d.get("includes") or {}).get("users", [])}
+    out = []
+    for t in d.get("data") or []:
+        u = users.get(t.get("author_id"), {})
+        out.append({"id": t["id"], "text": t.get("text", ""), "author_name": u.get("name", ""),
+                    "author_handle": u.get("username", ""), "author_avatar": u.get("profile_image_url", ""),
+                    "created_at": t.get("created_at"), "own": t.get("author_id") == account["external_id"]})
+    return out
+
+
+async def reply(account: dict, tweet_id: str, text: str) -> str:
+    headers = {"Authorization": f"Bearer {account['access_token']}"}
+    async with client(30) as c:
+        r = await c.post(f"{API}/tweets", headers=headers,
+                         json={"text": text, "reply": {"in_reply_to_tweet_id": tweet_id}})
+    if r.status_code == 403:
+        raise PublishError("X refuse cette réponse : depuis 2026, une application ne peut répondre que si l'auteur "
+                           "l'a mentionnée. Répondez depuis l'application X.")
+    if r.status_code not in (200, 201):
+        raise api_error(r, "X")
+    return r.json()["data"]["id"]

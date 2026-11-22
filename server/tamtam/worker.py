@@ -53,7 +53,7 @@ async def recompute_status(conn, post_id: int) -> str:
     row = await cur.fetchone()
     cur = await conn.execute("SELECT status FROM post_targets WHERE post_id=%s", (post_id,))
     sts = [r["status"] for r in await cur.fetchall()]
-    if not row or row["status"] == "draft":
+    if not row or row["status"] in ("draft", "review"):
         return row["status"] if row else ""
     if not sts:
         new = "failed"
@@ -224,7 +224,7 @@ async def claim(pool, limit: int = 4) -> list[int]:
         cur = await conn.execute(
             "UPDATE post_targets SET status='publishing', attempts=attempts+1, updated_at=now() WHERE id IN ("
             " SELECT t.id FROM post_targets t JOIN posts p ON p.id=t.post_id"
-            " WHERE t.status='pending' AND p.status <> 'draft' AND p.scheduled_at <= now()"
+            " WHERE t.status='pending' AND p.status NOT IN ('draft', 'review') AND p.scheduled_at <= now()"
             " AND (t.not_before IS NULL OR t.not_before <= now())"
             " ORDER BY p.scheduled_at, t.id LIMIT %s FOR UPDATE OF t SKIP LOCKED) RETURNING id, post_id",
             (limit,))
@@ -285,8 +285,12 @@ async def check_accounts(app) -> int:
 
 
 async def _stats_round(app) -> None:
-    from . import metrics, reports
+    from . import inbox, metrics, reports
 
+    try:
+        await inbox.collect(app)
+    except Exception:  # noqa: BLE001 - ne doit jamais arrêter la publication
+        _log.exception("relève des commentaires impossible")
     try:
         await metrics.collect(app)
         await reports.auto_weekly(app)

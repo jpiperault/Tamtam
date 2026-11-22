@@ -170,7 +170,7 @@ function TelegramCard() {
   const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!data) return <Loading error={error} />;
-  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success, report: data.report };
+  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success, report: data.report, approval: data.approval, inbox: data.inbox };
   const put = async (body, msg) => { const r = await run(() => api.put("/admin/telegram", { ...prefs, ...body }), msg); if (r) reload(); return r; };
   const saveToken = async (e) => { e.preventDefault(); if (await put({ token: token.trim() }, "Bot enregistré")) setToken(""); };
   const discover = async () => {
@@ -217,6 +217,8 @@ function TelegramCard() {
           <label className="check"><input type="checkbox" checked={data.accounts} onChange={(e) => put({ accounts: e.target.checked }, "Préférence enregistrée")} /><span>un compte doit être reconnecté (vérifié aussi chaque jour)</span></label>
           <label className="check"><input type="checkbox" checked={data.success} onChange={(e) => put({ success: e.target.checked }, "Préférence enregistrée")} /><span>un post est publié</span></label>
           <label className="check"><input type="checkbox" checked={data.report} onChange={(e) => put({ report: e.target.checked }, "Préférence enregistrée")} /><span>le rapport du lundi est prêt (si activé dans Statistiques des réseaux)</span></label>
+          <label className="check"><input type="checkbox" checked={data.approval} onChange={(e) => put({ approval: e.target.checked }, "Préférence enregistrée")} /><span>un membre propose un post à valider (validation à deux)</span></label>
+          <label className="check"><input type="checkbox" checked={data.inbox} onChange={(e) => put({ inbox: e.target.checked }, "Préférence enregistrée")} /><span>un nouveau commentaire arrive dans la boîte de réception</span></label>
         </div>
       </>}
     </div>
@@ -258,10 +260,43 @@ function StatsCard() {
   );
 }
 
+const INBOX_OPTS = [
+  ["meta", "Facebook et Instagram", "Ajoutez d'abord ces permissions aux cas d'utilisation Page et Instagram de l'app Meta (validation Meta requise pour d'autres comptes que les testeurs)."],
+  ["threads", "Threads", "Ajoutez-les au cas d'utilisation Threads de l'app."],
+  ["google", "YouTube", "Rien à ajouter dans Google : la permission est demandée à la reconnexion. Répondre coûte 50 unités du quota quotidien (10 000)."],
+  ["x", "X", "Aucune permission en plus, mais X facture chaque commentaire lu, ne remonte que les 7 derniers jours, et peut refuser les réponses automatiques (seulement si l'auteur vous a mentionné)."],
+];
+
+function InboxCard() {
+  const run = useRun();
+  const { data: loaded, error } = useLoad(() => api.get("/admin/inbox"), []);
+  const [local, setLocal] = useState(null);
+  const data = local || loaded;
+  if (!data) return <Loading error={error} />;
+  const save = async (patch) => {
+    const next = { meta: data.meta, threads: data.threads, google: data.google, x: data.x, ...patch };
+    setLocal({ ...data, ...patch });
+    const r = await run(() => api.put("/admin/inbox", next), "Réglage enregistré");
+    setLocal(r || data);
+  };
+  return (
+    <div className="card stack" id="inbox-card" style={{ marginBottom: 20 }}>
+      <h2>Boîte de réception (commentaires)</h2>
+      <p className="small muted" style={{ margin: 0 }}>Bluesky est toujours relevé. Pour les autres réseaux, il faut des permissions de lecture et de réponse aux commentaires : cochez le réseau, puis reconnectez ses comptes. Si la permission n'est pas ajoutée à l'application développeur, la connexion échouera (« Invalid Scopes ») : décochez pour revenir en arrière. TikTok et LinkedIn ne permettent pas de lire les commentaires.</p>
+      {INBOX_OPTS.map(([k, label, help]) => (
+        <label key={k} className="check"><input id={`inbox-${k}`} type="checkbox" checked={data[k]} onChange={(e) => save({ [k]: e.target.checked })} />
+          <span><b>{label}</b>{data.scopes[k]?.length ? <> (<span className="mono">{data.scopes[k].map((s) => s.replace("https://www.googleapis.com/auth/", "")).join(", ")}</span>)</> : null}<br />
+            <span className="small muted">{help}</span></span></label>
+      ))}
+    </div>
+  );
+}
+
 function Users() {
   const run = useRun();
   const { me } = useApp();
   const { data, error, reload } = useLoad(() => api.get("/admin/users"), []);
+  const approval = useLoad(() => api.get("/admin/approval"), []);
   const [form, setForm] = useState(null);
   const [pw, setPw] = useState(null);
   const create = async (e) => {
@@ -273,7 +308,13 @@ function Users() {
   return (
     <div className="card stack">
       <div className="row"><h2 className="grow">Utilisateurs</h2><button type="button" className="btn small" onClick={() => setForm({ email: "", name: "", password: "", is_admin: false })}><Icon name="plus" size={14} />Ajouter</button></div>
-      <p className="small muted" style={{ margin: 0 }}>Tous les utilisateurs voient tous les projets et peuvent publier. Seuls les administrateurs configurent les applications des réseaux.</p>
+      <p className="small muted" style={{ margin: 0 }}>Tous les utilisateurs voient tous les projets. Seuls les administrateurs configurent les applications des réseaux.</p>
+      {approval.data && (
+        <label className="check"><input id="opt-approval" type="checkbox" checked={approval.data.required}
+          onChange={async (e) => { if (await run(() => api.put("/admin/approval", { required: e.target.checked }), "Réglage enregistré")) approval.reload(); }} />
+          <span><b>Validation à deux</b> : les posts des membres attendent l'accord d'un administrateur avant de partir<br />
+            <span className="small muted">Le membre écrit et programme comme d'habitude, puis « Envoyer pour validation ». Un administrateur valide (le post part à l'heure prévue, ou tout de suite si elle est passée) ou refuse avec un commentaire (le post redevient un brouillon). Les posts des administrateurs partent directement.</span></span></label>
+      )}
       <div className="table-wrap"><table>
         <thead><tr><th>Nom</th><th>Adresse</th><th>Rôle</th><th /></tr></thead>
         <tbody>{data.map((u) => (
@@ -337,6 +378,7 @@ export default function Admin() {
       <p className="muted" style={{ margin: "0 0 12px", maxWidth: "75ch" }}>Dans « Nouveau post », le bouton « Rédiger avec Claude » propose un texte commun et une version par réseau, à partir de votre consigne et de la présentation du projet. Rien n'est publié sans votre validation.</p>
       <ClaudeCard />
       <StatsCard />
+      <InboxCard />
       <TelegramCard />
       <Users />
     </>

@@ -20,8 +20,9 @@ CHUNK = 8 * 1024 * 1024   # multiple de 256 Kio, comme l'exige Google
 PRIVACY = ("public", "unlisted", "private")
 
 
-def authorize_url(client_id: str, redirect_uri: str, state: str) -> str:
-    q = {"client_id": client_id, "redirect_uri": redirect_uri, "response_type": "code", "scope": " ".join(SCOPES),
+def authorize_url(client_id: str, redirect_uri: str, state: str, extra: list[str] | None = None) -> str:
+    q = {"client_id": client_id, "redirect_uri": redirect_uri, "response_type": "code",
+         "scope": " ".join(SCOPES + list(extra or [])),
          "state": state, "access_type": "offline", "prompt": "consent", "include_granted_scopes": "true"}
     return f"{AUTH}?{urlencode(q)}"
 
@@ -150,3 +151,43 @@ async def metrics(account: dict, video_id: str) -> dict:
     num = lambda k: int(s[k]) if k in s else None  # noqa: E731
     return {"views": num("viewCount"), "reach": None, "likes": num("likeCount"), "comments": num("commentCount"),
             "shares": None, "saves": None}
+
+
+# --- Commentaires (boîte de réception)
+
+async def comments(account: dict, video_id: str) -> list[dict]:
+    """Commentaires et réponses de la vidéo (youtube.force-ssl)."""
+    headers = {"Authorization": f"Bearer {account['access_token']}"}
+    async with client(30) as c:
+        r = await c.get(f"{API}/commentThreads", headers=headers, params={
+            "part": "snippet,replies", "videoId": video_id, "maxResults": 100, "order": "time",
+            "textFormat": "plainText"})
+    if r.status_code != 200:
+        raise api_error(r, "YouTube")
+    out = []
+
+    def one(cm, thread_id):
+        sn = cm.get("snippet", {})
+        return {"id": cm["id"], "text": sn.get("textOriginal") or sn.get("textDisplay", ""),
+                "author_name": sn.get("authorDisplayName", ""), "author_handle": sn.get("authorDisplayName", ""),
+                "author_avatar": sn.get("authorProfileImageUrl", ""), "created_at": sn.get("publishedAt"),
+                "own": (sn.get("authorChannelId") or {}).get("value") == account["external_id"],
+                "extra": {"thread": thread_id}}
+
+    for th in r.json().get("items", []):
+        top = th.get("snippet", {}).get("topLevelComment")
+        if top:
+            out.append(one(top, th["id"]))
+        out += [one(cm, th["id"]) for cm in (th.get("replies") or {}).get("comments", [])]
+    return out
+
+
+async def reply(account: dict, extra: dict, comment_id: str, text: str) -> str:
+    """Réponse dans le fil du commentaire (YouTube n'a qu'un niveau de réponses)."""
+    async with client(30) as c:
+        r = await c.post(f"{API}/comments", params={"part": "snippet"},
+                         headers={"Authorization": f"Bearer {account['access_token']}"},
+                         json={"snippet": {"parentId": extra.get("thread") or comment_id, "textOriginal": text}})
+    if r.status_code != 200:
+        raise api_error(r, "YouTube")
+    return r.json().get("id", "")
