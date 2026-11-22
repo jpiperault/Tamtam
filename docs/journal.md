@@ -1,5 +1,23 @@
 # Journal
 
+## 1.5.0 — 22 novembre 2026
+
+- **Chiffres des réseaux** dans Statistiques : vues, J'aime, commentaires, partages (et portée, enregistrements
+  quand le réseau les donne), par réseau et post par post. Relus toutes les 6 heures pour les posts de moins de
+  30 jours, bouton « Actualiser ».
+- **Bilan rédigé par Claude** : à la demande (7 derniers jours) ou automatiquement chaque lundi matin (option dans
+  Administration), avec comparaison à la semaine précédente, points forts, points à améliorer et idées. Envoyé par
+  Telegram si les alertes sont configurées.
+- Administration → **Statistiques des réseaux** : demander à la connexion les permissions de lecture des
+  statistiques (Meta `read_insights` + `instagram_manage_insights`, TikTok `video.list`), désactivées par défaut
+  pour ne pas casser la connexion des applications qui ne les ont pas.
+- Pages légales mises à jour (statistiques lues, chiffres envoyés à Claude pour le bilan).
+
+Vérifié : tests d'API (lecture des chiffres en simulation, bilan avec un faux Claude, permissions demandées à la
+connexion, découpage des semaines), écrans dans le navigateur en mode simulation. **Pas encore vérifié** : lecture
+réelle sur Facebook, Instagram, TikTok et X (formats de réponse tirés de la documentation officielle), vrai bilan
+rédigé par Claude.
+
 ## 1.4.0 — 22 novembre 2026
 
 - **Campagne de lancement** (nouvelle page) : Claude rédige une série de 2 à 10 posts à partir d'une seule consigne ;

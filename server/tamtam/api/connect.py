@@ -73,8 +73,9 @@ async def start(provider: str, body: StartIn, request: Request, user=Depends(cur
     await conn.execute("INSERT INTO oauth_states(state, provider, project_id, user_id, code_verifier) "
                        "VALUES (%s,%s,%s,%s,%s)", (state, provider, body.project_id, user["id"], verifier))
     await conn.commit()
+    stats = await fetchone(conn, "SELECT value FROM site_settings WHERE key=%s", (f"stats_scopes_{provider}",))
     url = platforms.authorize_url(provider, creds["client_id"], redirect_uri(request, provider), state, verifier,
-                                  s.graph_version)
+                                  s.graph_version, bool(stats and stats["value"] == "1"))
     return {"url": url}
 
 

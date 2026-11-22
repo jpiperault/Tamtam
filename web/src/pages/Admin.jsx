@@ -156,7 +156,7 @@ function TelegramCard() {
   const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!data) return <Loading error={error} />;
-  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success };
+  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success, report: data.report };
   const put = async (body, msg) => { const r = await run(() => api.put("/admin/telegram", { ...prefs, ...body }), msg); if (r) reload(); return r; };
   const saveToken = async (e) => { e.preventDefault(); if (await put({ token: token.trim() }, "Bot enregistré")) setToken(""); };
   const discover = async () => {
@@ -202,8 +202,38 @@ function TelegramCard() {
           <label className="check"><input id="tg-failures" type="checkbox" checked={data.failures} onChange={(e) => put({ failures: e.target.checked }, "Préférence enregistrée")} /><span>un post échoue (après les nouveaux essais automatiques)</span></label>
           <label className="check"><input type="checkbox" checked={data.accounts} onChange={(e) => put({ accounts: e.target.checked }, "Préférence enregistrée")} /><span>un compte doit être reconnecté (vérifié aussi chaque jour)</span></label>
           <label className="check"><input type="checkbox" checked={data.success} onChange={(e) => put({ success: e.target.checked }, "Préférence enregistrée")} /><span>un post est publié</span></label>
+          <label className="check"><input type="checkbox" checked={data.report} onChange={(e) => put({ report: e.target.checked }, "Préférence enregistrée")} /><span>le rapport du lundi est prêt (si activé dans Statistiques des réseaux)</span></label>
         </div>
       </>}
+    </div>
+  );
+}
+
+function StatsCard() {
+  const run = useRun();
+  const { data: loaded, error } = useLoad(() => api.get("/admin/stats"), []);
+  const [local, setLocal] = useState(null);
+  const data = local || loaded;
+  if (!data) return <Loading error={error} />;
+  const save = async (patch) => {
+    setLocal({ ...data, ...patch });   // la case change tout de suite ; annulée si l'enregistrement échoue
+    const r = await run(() => api.put("/admin/stats", { scopes_meta: data.scopes_meta, scopes_tiktok: data.scopes_tiktok, report_weekly: data.report_weekly, ...patch }), "Réglage enregistré");
+    setLocal(r || data);
+  };
+  return (
+    <div className="card stack" id="stats-card" style={{ marginBottom: 20 }}>
+      <h2>Statistiques des réseaux</h2>
+      <p className="small muted" style={{ margin: 0 }}>Tamtam relit toutes les 6 heures les chiffres des posts publiés depuis moins de 30 jours. Sans réglage, il lit ce que les permissions actuelles autorisent : J'aime, commentaires et partages sur Facebook et Instagram. Les vues et la portée demandent des permissions en plus.</p>
+      <label className="check"><input id="stats-meta" type="checkbox" checked={data.scopes_meta} onChange={(e) => save({ scopes_meta: e.target.checked })} />
+        <span><b>Meta : demander aussi la lecture des statistiques</b> (<span className="mono">{data.scopes.meta.join(", ")}</span>)<br />
+          <span className="small muted">Ajoutez d'abord ces permissions à votre app Meta (cas d'utilisation Page et Instagram → Personnaliser), sinon la connexion échouera avec « Invalid Scopes ». Puis reconnectez les comptes Facebook et Instagram.</span></span></label>
+      <label className="check"><input id="stats-tiktok" type="checkbox" checked={data.scopes_tiktok} onChange={(e) => save({ scopes_tiktok: e.target.checked })} />
+        <span><b>TikTok : demander aussi la lecture des vidéos</b> (<span className="mono">{data.scopes.tiktok.join(", ")}</span>)<br />
+          <span className="small muted">Ajoutez d'abord le produit « Display API » et la permission video.list à votre app TikTok (soumis à validation), puis reconnectez le compte. Les posts privés n'ont pas de statistiques.</span></span></label>
+      <p className="small muted" style={{ margin: 0 }}>X : les chiffres sont lus avec la permission actuelle, mais X facture chaque lecture (quelques dixièmes de centime par post et par jour) : il faut des crédits sur votre compte développeur X.</p>
+      <label className="check"><input id="stats-report" type="checkbox" checked={data.report_weekly} onChange={(e) => save({ report_weekly: e.target.checked })} />
+        <span><b>Rapport de la semaine rédigé par Claude, chaque lundi matin</b><br />
+          <span className="small muted">Pour chaque projet qui a publié dans la semaine. Visible dans Statistiques, envoyé aussi par Telegram si les alertes sont configurées. Compte pour une rédaction par projet.</span></span></label>
     </div>
   );
 }
@@ -286,6 +316,7 @@ export default function Admin() {
       <h2 style={{ margin: "8px 0 4px" }}>Rédaction avec Claude</h2>
       <p className="muted" style={{ margin: "0 0 12px", maxWidth: "75ch" }}>Dans « Nouveau post », le bouton « Rédiger avec Claude » propose un texte commun et une version par réseau, à partir de votre consigne et de la présentation du projet. Rien n'est publié sans votre validation.</p>
       <ClaudeCard />
+      <StatsCard />
       <TelegramCard />
       <Users />
     </>

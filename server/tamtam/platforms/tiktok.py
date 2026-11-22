@@ -17,8 +17,8 @@ MIN_CHUNK, MAX_CHUNK = 5 * 1024 * 1024, 64 * 1024 * 1024
 CHUNK = 10 * 1024 * 1024
 
 
-def authorize_url(client_key: str, redirect_uri: str, state: str) -> str:
-    q = {"client_key": client_key, "scope": ",".join(SCOPES), "response_type": "code",
+def authorize_url(client_key: str, redirect_uri: str, state: str, extra: list[str] | None = None) -> str:
+    q = {"client_key": client_key, "scope": ",".join(SCOPES + list(extra or [])), "response_type": "code",
          "redirect_uri": redirect_uri, "state": state}
     return f"https://www.tiktok.com/v2/auth/authorize/?{urlencode(q)}"
 
@@ -169,3 +169,29 @@ async def publish(account: dict, content: Content) -> Result:
                 raise PublishError("TikTok : traitement trop long. Vérifiez le compte TikTok avant de réessayer.")
             await asyncio.sleep(5)
             waited += 5
+
+
+async def metrics(account: dict, video_id: str) -> dict:
+    """Vues, J'aime, commentaires, partages d'une vidéo (permission video.list, Display API)."""
+    if not video_id.isdigit():
+        raise PublishError("TikTok ne donne pas l'identifiant public de ce post (post privé ou encore en "
+                           "modération) : pas de statistiques")
+    headers = {"Authorization": f"Bearer {account['access_token']}"}
+    async with client(30) as c:
+        r = await c.post(f"{API}/video/query/", headers=headers,
+                         params={"fields": "id,view_count,like_count,comment_count,share_count"},
+                         json={"filters": {"video_ids": [video_id]}})
+    try:
+        err = (r.json().get("error") or {})
+    except ValueError:
+        err = {}
+    if err.get("code") == "scope_not_authorized":
+        raise PublishError("TikTok : lecture des statistiques non autorisée. Cochez la permission dans "
+                           "Administration → Statistiques puis reconnectez le compte")
+    data = _check(r)["data"]
+    videos = data.get("videos") or []
+    if not videos:
+        raise PublishError("TikTok : vidéo introuvable (supprimée ou privée)")
+    v = videos[0]
+    return {"views": v.get("view_count"), "reach": None, "likes": v.get("like_count"),
+            "comments": v.get("comment_count"), "shares": v.get("share_count"), "saves": None}

@@ -280,10 +280,21 @@ async def check_accounts(app) -> int:
     return broken
 
 
+async def _stats_round(app) -> None:
+    from . import metrics, reports
+
+    try:
+        await metrics.collect(app)
+        await reports.auto_weekly(app)
+    except Exception:  # noqa: BLE001 - les statistiques ne doivent jamais arrêter la publication
+        _log.exception("lecture des statistiques ou rapport hebdomadaire impossible")
+
+
 async def run(app, stop: asyncio.Event) -> None:
     sem = asyncio.Semaphore(3)
     running: set[asyncio.Task] = set()
     next_check = datetime.now(timezone.utc) + timedelta(minutes=10)
+    next_stats = datetime.now(timezone.utc) + timedelta(minutes=5)
 
     async def one(tid: int):
         async with sem:
@@ -301,6 +312,12 @@ async def run(app, stop: asyncio.Event) -> None:
         if datetime.now(timezone.utc) >= next_check:
             next_check = datetime.now(timezone.utc) + timedelta(hours=24)
             t = asyncio.create_task(check_accounts(app))
+            running.add(t)
+            t.add_done_callback(running.discard)
+        if datetime.now(timezone.utc) >= next_stats:
+            # Statistiques des posts récents (relues toutes les 6 h) puis rapport du lundi s'il est dû.
+            next_stats = datetime.now(timezone.utc) + timedelta(minutes=30)
+            t = asyncio.create_task(_stats_round(app))
             running.add(t)
             t.add_done_callback(running.discard)
         try:

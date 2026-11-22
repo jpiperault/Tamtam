@@ -129,6 +129,7 @@ class TelegramIn(BaseModel):
     failures: bool = True
     accounts: bool = True
     success: bool = False
+    report: bool = True
 
 
 @router.put("/admin/telegram")
@@ -193,3 +194,27 @@ async def test_telegram(request: Request, admin=Depends(admin_user), conn=Depend
     if not sent:
         raise HTTPException(502, "aucun message n'a pu être envoyé : vérifiez que chaque destinataire a écrit au bot")
     return {"sent": sent}
+
+
+class StatsIn(BaseModel):
+    scopes_meta: bool = False      # demander read_insights + instagram_manage_insights à la connexion
+    scopes_tiktok: bool = False    # demander video.list à la connexion
+    report_weekly: bool = False    # rapport rédigé par Claude chaque lundi
+
+
+@router.get("/admin/stats")
+async def get_stats_settings(admin=Depends(admin_user), conn=Depends(get_conn)):
+    rows = {r["key"]: r["value"] for r in await fetchall(conn, "SELECT key, value FROM site_settings WHERE key IN "
+                                                               "('stats_scopes_meta','stats_scopes_tiktok','report_weekly')")}
+    return {"scopes_meta": rows.get("stats_scopes_meta") == "1", "scopes_tiktok": rows.get("stats_scopes_tiktok") == "1",
+            "report_weekly": rows.get("report_weekly") == "1",
+            "scopes": {"meta": platforms.STATS_SCOPES["meta"], "tiktok": platforms.STATS_SCOPES["tiktok"]}}
+
+
+@router.put("/admin/stats")
+async def save_stats_settings(body: StatsIn, admin=Depends(admin_user), conn=Depends(get_conn)):
+    await _set(conn, "stats_scopes_meta", "1" if body.scopes_meta else "0")
+    await _set(conn, "stats_scopes_tiktok", "1" if body.scopes_tiktok else "0")
+    await _set(conn, "report_weekly", "1" if body.report_weekly else "0")
+    await conn.commit()
+    return await get_stats_settings(admin, conn)

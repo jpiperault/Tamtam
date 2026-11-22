@@ -731,3 +731,87 @@ def test_campaign_and_recycle(client, project, accounts, monkeypatch):
     sim = ok(client.post("/api/v1/ai/campaign", json={"project_id": project["id"], "brief": "La v2", "count": 2,
                                                        "platforms": ["x"]}))
     assert len(sim["posts"]) == 2 and sim["model"] == "simulation"
+
+
+# --- 1.5 : statistiques des réseaux et rapport hebdomadaire
+
+def test_insights_and_report(client, project, accounts, monkeypatch):
+    from tamtam import ai, notify
+
+    # au moins un post publié (comptes de démonstration : chiffres simulés)
+    ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Pour les stats",
+                                          "account_ids": [accounts["x"]["id"], accounts["facebook"]["id"]]}), 201)
+    run_worker(client)
+    r = ok(client.post(f"/api/v1/insights/refresh?project_id={project['id']}"))
+    assert r["read"] >= 2 and r["failed"] == 0
+    ins = ok(client.get(f"/api/v1/insights?project_id={project['id']}"))
+    x = next(p for p in ins["by_platform"] if p["platform"] == "x")
+    assert x["measured"] >= 1 and x["views"] > 0 and x["likes"] is not None
+    post = next(p for p in ins["posts"] if p["body"] == "Pour les stats")
+    assert {n["platform"] for n in post["networks"]} == {"x", "facebook"}
+    # la lecture automatique ne relit pas un chiffre frais
+    from tamtam import metrics
+    assert client.portal.call(metrics.collect, client.app_ref) == {"read": 0, "failed": 0}
+
+    # rapport avec un faux Claude
+    content = {"resume": "Bonne semaine.", "points_forts": ["X : 120 vues"], "a_ameliorer": [], "idees": ["Une vidéo"]}
+    fake = _FakeClaude([_claude_message(content)])
+    monkeypatch.setattr(ai, "get_client", lambda key: fake)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "sk-ant-test-123", "model": "claude-opus-5-5", "daily_limit": 100}))
+    rep = ok(client.post(f"/api/v1/reports?project_id={project['id']}"), 201)
+    assert rep["content"] == content and not rep["automatic"]
+    sent = __import__("json").loads(fake.calls[0]["messages"][0]["content"].split("<chiffres>")[1].split("</chiffres>")[0])
+    assert any(p["texte"].startswith("Pour les stats") for p in sent["posts"])
+    assert "X" in sent["totaux_par_reseau"] and fake.calls[0]["system"].startswith("Tu es l'analyste")
+    assert len(ok(client.get(f"/api/v1/reports?project_id={project['id']}"))) == 1
+    ok(client.delete(f"/api/v1/reports/{rep['id']}"))
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5"}))
+    # texte Telegram du rapport
+    rep2 = ok(client.post(f"/api/v1/reports?project_id={project['id']}"), 201)   # simulation
+    from datetime import date
+    txt = __import__("tamtam.reports", fromlist=["x"]).telegram_text(
+        "https://t.example", "Appli", {**rep2, "period_start": date(2026, 11, 16), "period_end": date(2026, 11, 22)})
+    assert "16/11 au 22/11" in txt and "Idées :" in txt
+
+
+def test_stats_settings_and_scopes(client, project):
+    s = ok(client.get("/api/v1/admin/stats"))
+    assert not s["scopes_meta"] and not s["report_weekly"]
+    ok(client.put("/api/v1/admin/apps/meta", json={"client_id": "123", "client_secret": "s"}))
+    ok(client.put("/api/v1/admin/apps/tiktok", json={"client_id": "abc", "client_secret": "s"}))
+    url = ok(client.post("/api/v1/connect/meta/start", json={"project_id": project["id"]}))["url"]
+    assert "read_insights" not in url
+    s = ok(client.put("/api/v1/admin/stats", json={"scopes_meta": True, "scopes_tiktok": True, "report_weekly": True}))
+    assert s["scopes_meta"] and s["report_weekly"]
+    url = ok(client.post("/api/v1/connect/meta/start", json={"project_id": project["id"]}))["url"]
+    assert "read_insights" in url and "instagram_manage_insights" in url
+    url = ok(client.post("/api/v1/connect/tiktok/start", json={"project_id": project["id"]}))["url"]
+    assert "video.list" in url
+    ok(client.put("/api/v1/admin/stats", json={}))
+    login(client, *MEMBER)
+    assert client.get("/api/v1/admin/stats").status_code == 403
+    login(client, *ADMIN)
+
+
+def test_metrics_parsers():
+    from tamtam.platforms import meta, simulated_metrics
+
+    d = {"data": [{"name": "post_media_view", "values": [{"value": 1200}]},
+                  {"name": "post_reactions_by_type_total", "values": [{"value": {"like": 3, "love": 2}}]},
+                  {"name": "views", "total_value": {"value": 77}, "values": []}]}
+    assert meta._insights(d) == {"post_media_view": 1200, "post_reactions_by_type_total": 5, "views": 77}
+    assert meta._count({"reactions": {"summary": {"total_count": 9}}}, "reactions") == 9
+    from datetime import datetime, timedelta, timezone
+    old = simulated_metrics("abc", datetime.now(timezone.utc) - timedelta(days=5))
+    new = simulated_metrics("abc", datetime.now(timezone.utc) - timedelta(hours=2))
+    assert old["views"] >= new["views"] > 0
+
+
+def test_week_bounds():
+    from datetime import datetime, timezone
+
+    from tamtam.metrics import week_bounds
+
+    # lundi 23 novembre 2026, 9 h à Paris : semaine du lundi 16 (0 h Paris) au lundi 23 (0 h Paris)
+    start, end = week_bounds(datetime(2026, 11, 23, 8, 0, tzinfo=timezone.utc), "Europe/Paris")
+    assert start.isoformat() == "2026-11-15T23:00:00+00:00" and end.isoformat() == "2026-11-22T23:00:00+00:00"

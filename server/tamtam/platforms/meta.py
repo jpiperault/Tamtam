@@ -19,9 +19,10 @@ def _graph(version: str) -> str:
     return f"https://graph.facebook.com/{version}"
 
 
-def authorize_url(client_id: str, redirect_uri: str, state: str, verifier: str | None, version: str) -> str:
+def authorize_url(client_id: str, redirect_uri: str, state: str, verifier: str | None, version: str,
+                  extra: list[str] | None = None) -> str:
     q = {"client_id": client_id, "redirect_uri": redirect_uri, "state": state, "response_type": "code",
-         "scope": ",".join(SCOPES)}
+         "scope": ",".join(SCOPES + list(extra or []))}
     return f"https://www.facebook.com/{version}/dialog/oauth?{urlencode(q)}"
 
 
@@ -175,3 +176,74 @@ async def check_token(account: dict, version: str) -> None:
     if r.status_code != 200:
         err = api_error(r, "Meta")
         raise AuthExpired(str(err)) if r.status_code in (400, 401) else err
+
+
+# --- Statistiques
+
+def _count(d: dict, edge: str) -> int | None:
+    v = d.get(edge)
+    if isinstance(v, dict):
+        return (v.get("summary") or {}).get("total_count")
+    return None
+
+
+async def _get(c, url: str, params: dict, network: str) -> dict:
+    r = await c.get(url, params=params)
+    if r.status_code != 200:
+        raise api_error(r, network)
+    return r.json()
+
+
+def _insights(d: dict) -> dict:
+    out = {}
+    for item in d.get("data", []):
+        vals = item.get("values") or [{}]
+        v = vals[-1].get("value") if vals else None
+        if isinstance(v, dict):       # réactions par type : on additionne
+            v = sum(x for x in v.values() if isinstance(x, (int, float)))
+        if v is None:
+            v = item.get("total_value", {}).get("value")
+        out[item.get("name")] = v
+    return out
+
+
+async def facebook_metrics(account: dict, post_id: str, version: str) -> dict:
+    """J'aime, commentaires, partages (permission déjà accordée) ; vues et portée si read_insights est accordé."""
+    g, tok = _graph(version), account["access_token"]
+    out = {"views": None, "reach": None, "likes": None, "comments": None, "shares": None, "saves": None}
+    async with client(30) as c:
+        try:
+            d = await _get(c, f"{g}/{post_id}", {"access_token": tok, "fields":
+                           "reactions.summary(total_count).limit(0),comments.summary(true).limit(0),shares"}, "Facebook")
+            out["shares"] = (d.get("shares") or {}).get("count", 0)
+        except PublishError:
+            # vidéo : pas de champ « shares » sur l'objet vidéo
+            d = await _get(c, f"{g}/{post_id}", {"access_token": tok, "fields":
+                           "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)"}, "Facebook")
+        out["likes"], out["comments"] = _count(d, "reactions"), _count(d, "comments")
+        try:
+            ins = _insights(await _get(c, f"{g}/{post_id}/insights", {
+                "access_token": tok, "metric": "post_media_view,post_total_media_view_unique"}, "Facebook"))
+            out["views"], out["reach"] = ins.get("post_media_view"), ins.get("post_total_media_view_unique")
+        except PublishError:
+            pass   # read_insights non accordé, ou vidéo : on garde les chiffres d'engagement
+    return out
+
+
+async def instagram_metrics(account: dict, media_id: str, version: str) -> dict:
+    """Vues, portée, J'aime, commentaires, partages, enregistrements (instagram_manage_insights) ; sinon J'aime et
+    commentaires seulement."""
+    g, tok = _graph(version), account["access_token"]
+    async with client(30) as c:
+        try:
+            ins = _insights(await _get(c, f"{g}/{media_id}/insights", {
+                "access_token": tok, "metric": "views,reach,likes,comments,shares,saved"}, "Instagram"))
+            return {"views": ins.get("views"), "reach": ins.get("reach"), "likes": ins.get("likes"),
+                    "comments": ins.get("comments"), "shares": ins.get("shares"), "saves": ins.get("saved")}
+        except AuthExpired:
+            raise
+        except PublishError:
+            d = await _get(c, f"{g}/{media_id}", {"access_token": tok, "fields": "like_count,comments_count"},
+                           "Instagram")
+            return {"views": None, "reach": None, "likes": d.get("like_count"), "comments": d.get("comments_count"),
+                    "shares": None, "saves": None}

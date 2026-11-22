@@ -26,15 +26,21 @@ def pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
+# Permissions de lecture des statistiques, demandées seulement si l'administrateur l'a choisi (Administration →
+# Statistiques) : un réseau refuse toute la connexion si l'application développeur ne les a pas ajoutées.
+STATS_SCOPES = {"meta": ["read_insights", "instagram_manage_insights"], "tiktok": ["video.list"]}
+
+
 def authorize_url(provider: str, client_id: str, redirect_uri: str, state: str, verifier: str,
-                  graph_version: str) -> str:
+                  graph_version: str, stats: bool = False) -> str:
+    extra = STATS_SCOPES.get(provider, []) if stats else []
     if provider == "meta":
-        return meta.authorize_url(client_id, redirect_uri, state, None, graph_version)
+        return meta.authorize_url(client_id, redirect_uri, state, None, graph_version, extra)
     if provider == "x":
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
         return x.authorize_url(client_id, redirect_uri, state, challenge)
     if provider == "tiktok":
-        return tiktok.authorize_url(client_id, redirect_uri, state)
+        return tiktok.authorize_url(client_id, redirect_uri, state, extra)
     raise ValueError(provider)
 
 
@@ -81,4 +87,35 @@ async def publish(platform: str, account: dict, content: Content, graph_version:
         return await x.publish(account, content)
     if platform == "tiktok":
         return await tiktok.publish(account, content)
+    raise PublishError(f"réseau inconnu : {platform}")
+
+
+METRIC_FIELDS = ("views", "reach", "likes", "comments", "shares", "saves")
+
+
+def simulated_metrics(external_id: str, published_at) -> dict:
+    """Chiffres factices mais stables (mode simulation) : ils grandissent avec l'âge du post."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    seed = int(hashlib.sha256(external_id.encode()).hexdigest()[:8], 16)
+    hours = max(1.0, (datetime.now(timezone.utc) - published_at).total_seconds() / 3600) if published_at else 1.0
+    growth = min(1.0, hours / 72) ** 0.5
+    views = int((300 + seed % 4700) * growth)
+    return {"views": views, "reach": int(views * 0.8), "likes": int(views * (0.02 + seed % 7 / 100)),
+            "comments": int(views * 0.004), "shares": int(views * 0.003), "saves": int(views * 0.002)}
+
+
+async def metrics(platform: str, account: dict, external_id: str, graph_version: str, published_at=None) -> dict:
+    """Chiffres d'un post publié : {views, reach, likes, comments, shares, saves} (None si non fourni)."""
+    if account.get("simulated"):
+        return simulated_metrics(external_id, published_at)
+    if platform == "facebook":
+        return await meta.facebook_metrics(account, external_id, graph_version)
+    if platform == "instagram":
+        return await meta.instagram_metrics(account, external_id, graph_version)
+    if platform == "x":
+        return await x.metrics(account, external_id)
+    if platform == "tiktok":
+        return await tiktok.metrics(account, external_id)
     raise PublishError(f"réseau inconnu : {platform}")

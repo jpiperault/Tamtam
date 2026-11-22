@@ -145,6 +145,52 @@ ouvre un nouveau post à la date du jour choisi. Cliquer un post programmé perm
 
 ## Statistiques
 
+### Bilan rédigé par Claude
+
+« **Bilan des 7 derniers jours** » : Claude lit les chiffres de la semaine (posts publiés, vues, J'aime,
+commentaires, partages, clics) et les compare à la semaine précédente. Il écrit un résumé, les points forts, ce qui
+peut s'améliorer et des idées de posts pour la semaine qui vient. Il ne cite que les chiffres réels ; une cause
+supposée est présentée comme une hypothèse. Chaque bilan compte pour une rédaction.
+
+Si l'option est activée (Administration → Statistiques des réseaux), un bilan est rédigé **automatiquement chaque
+lundi matin** pour chaque projet qui a publié dans la semaine, et envoyé par Telegram si les alertes sont
+configurées.
+
+### Chiffres des réseaux
+
+Pour chaque réseau : nombre de posts et total des vues, J'aime, commentaires et partages sur la période, puis le
+détail post par post (avec un bouton **Recycler** pour republier ceux qui ont marché). Tamtam relit ces chiffres
+toutes les 6 heures pour les posts publiés depuis moins de 30 jours ; **Actualiser** les relit tout de suite.
+
+Ce que chaque réseau donne :
+
+| Réseau | Sans réglage | Avec la permission en plus |
+|---|---|---|
+| Facebook | J'aime (réactions), commentaires, partages | + vues et personnes touchées (`read_insights`) |
+| Instagram | J'aime, commentaires | + vues, portée, partages, enregistrements (`instagram_manage_insights`) |
+| TikTok | rien | vues, J'aime, commentaires, partages (`video.list`) |
+| X | vues, J'aime, réponses, reposts, signets | lecture payante chez X : il faut des crédits API |
+
+Un « – » veut dire que le réseau ne fournit pas ce chiffre. Une raison s'affiche sous le tableau quand un réseau
+refuse la lecture.
+
+**Ajouter les permissions** (Administration → Statistiques des réseaux) :
+
+1. Ajoutez d'abord la permission à votre application développeur. Pour Meta : dans le cas d'utilisation
+   « Gérer tout sur votre Page », ajoutez `read_insights` ; dans « Gérer les messages et le contenu sur Instagram »,
+   ajoutez `instagram_manage_insights`. Pour TikTok : ajoutez le produit **Display API** (permission `video.list`).
+2. Cochez la case du réseau dans Tamtam.
+3. Reconnectez les comptes de ce réseau (page Comptes) pour accepter la nouvelle permission.
+
+Attention : si vous cochez la case sans avoir ajouté la permission à l'application, la connexion au réseau échoue
+(« Invalid Scopes » chez Meta). Décochez-la pour revenir en arrière. En mode « développement », les permissions
+marchent pour les comptes de test de l'application ; pour d'autres comptes, Meta et TikTok demandent une validation
+de l'application.
+
+TikTok ne donne pas de chiffres pour un post privé (« Moi uniquement »), ni tant qu'il est en modération.
+
+### Clics sur les liens
+
 Nombre de clics sur les liens suivis, par réseau, et les posts qui ont ramené le plus de visites. Instagram et TikTok
 n'ayant pas de lien cliquable dans les posts, leurs visites se voient dans les statistiques de votre site (lien de
 bio avec `utm_source=instagram` par exemple). Il en va de même pour Facebook quand le lien court n'est pas coché :
@@ -269,7 +315,8 @@ développeurs.
 ### Alertes Telegram
 
 Tamtam peut vous prévenir sur Telegram quand un post échoue (après ses nouveaux essais automatiques), quand un compte
-doit être reconnecté (vérifié aussi une fois par jour), et, si vous le voulez, quand un post est publié.
+doit être reconnecté (vérifié aussi une fois par jour), quand le bilan du lundi est prêt (il est alors envoyé en
+entier), et, si vous le voulez, quand un post est publié.
 
 1. Dans Telegram, ouvrez **@BotFather**, envoyez `/newbot`, choisissez un nom : il vous donne un jeton.
 2. Administration → **Alertes Telegram** : collez le jeton, **Enregistrer**.

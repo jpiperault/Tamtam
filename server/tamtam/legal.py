@@ -9,7 +9,7 @@ from __future__ import annotations
 import html
 import re
 
-UPDATED = {"fr": "21 novembre 2026", "en": "November 21, 2026"}
+UPDATED = {"fr": "22 novembre 2026", "en": "November 22, 2026"}
 
 PRIVACY_FR = """# Politique de confidentialité
 
@@ -30,6 +30,8 @@ applications, sites et produits. Cette page explique quelles données il traite 
   chiffrés en base. {app} ne connaît jamais vos mots de passe de réseaux sociaux.
 - **Contenus publiés** : textes, images et vidéos préparés dans {app}, réglages de publication, et l'adresse des
   posts une fois publiés.
+- **Statistiques des posts** lues sur les réseaux : nombres de vues, de mentions J'aime, de commentaires, de partages
+  et d'enregistrements de chaque post publié par {app} (jamais l'identité des personnes).
 - **Clics sur les liens courts** : uniquement un nombre de clics par jour. Ni adresse IP, ni cookie, ni profil des
   personnes qui cliquent ne sont conservés.
 
@@ -41,12 +43,14 @@ Elles ne sont ni vendues, ni utilisées à des fins publicitaires, ni partagées
 
 - **les réseaux sociaux** sur lesquels un utilisateur demande à publier, qui reçoivent le contenu du post ;
 - **Anthropic** (assistant de rédaction Claude), seulement quand un utilisateur demande une proposition de texte :
-  la consigne, le texte, la présentation du projet et, si l'utilisateur l'accepte, les images du post.
+  la consigne, le texte, la présentation du projet et, si l'utilisateur l'accepte, les images du post ; pour le
+  bilan hebdomadaire, les textes des posts de la semaine et leurs chiffres (vues, mentions J'aime, commentaires…).
 
 ## Données TikTok
 
 Pour TikTok, {app} utilise les informations de base du compte (nom affiché, photo) et l'autorisation de publier
-(Content Posting API). Il ne lit pas les messages, les abonnés ni les contenus d'autres comptes.
+(Content Posting API) et, si l'option est activée, les nombres de vues, de J'aime, de commentaires et de partages des
+vidéos qu'il a publiées (video.list). Il ne lit pas les messages, les abonnés ni les contenus d'autres comptes.
 
 ## Conservation et suppression
 
@@ -109,6 +113,8 @@ page explains which data it processes and why.
   {app} never sees your social media passwords.
 - **Published content**: texts, images and videos prepared in {app}, posting settings, and the address of each post
   once published.
+- **Post statistics** read from the networks: number of views, likes, comments, shares and saves of each post
+  published by {app} (never who these people are).
 - **Short link clicks**: only a daily click count. No IP address, cookie or profile of the people who click is kept.
 
 ## How we use it
@@ -119,12 +125,14 @@ shared only with:
 
 - **the social networks** a user asks to publish to, which receive the post content;
 - **Anthropic** (Claude writing assistant), only when a user asks for a text suggestion: the instructions, the text,
-  the project description and, if the user agrees, the post's images.
+  the project description and, if the user agrees, the post's images; for the weekly report, the week's post texts
+  and their figures (views, likes, comments…).
 
 ## TikTok data
 
 For TikTok, {app} uses basic account information (display name, avatar) and the permission to publish (Content
-Posting API). It does not read messages, followers or other accounts' content.
+Posting API), and, if enabled, the view, like, comment and share counts of the videos it published (video.list). It
+does not read messages, followers or other accounts' content.
 
 ## Retention and deletion
 

@@ -15,6 +15,8 @@ réseau ramène des visites.
   présentation du projet (clé API saisie dans Administration).
 - **Campagne de lancement** : Claude rédige une série de posts à relire puis programmer ; **créneaux de
   publication** par projet ; **recyclage** des posts qui ont marché ; **recadrage** des images par réseau.
+- **Statistiques des réseaux** (vues, J'aime, commentaires, partages par post) et **bilan hebdomadaire** rédigé
+  par Claude.
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 

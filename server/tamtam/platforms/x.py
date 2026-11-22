@@ -115,3 +115,24 @@ async def publish(account: dict, content: Content) -> Result:
     tid = r.json()["data"]["id"]
     handle = account.get("handle") or "i"
     return Result(tid, f"https://x.com/{handle}/status/{tid}")
+
+
+async def metrics(account: dict, tweet_id: str) -> dict:
+    """Vues, J'aime, réponses, reposts (public_metrics). Lecture payante à l'usage chez X (quelques dixièmes de
+    centime par post) : elle échoue si le compte développeur n'a pas de crédit."""
+    headers = {"Authorization": f"Bearer {account['access_token']}"}
+    async with client(30) as c:
+        r = await c.get(f"{API}/tweets", headers=headers, params={"ids": tweet_id, "tweet.fields": "public_metrics"})
+    if r.status_code == 402 or (r.status_code == 403 and "credit" in r.text.lower()):
+        raise PublishError("X : lecture des statistiques refusée (crédits API X épuisés ou absents)")
+    if r.status_code != 200:
+        raise api_error(r, "X")
+    data = r.json().get("data") or []
+    if not data:
+        raise PublishError("X : post introuvable (supprimé ?)")
+    m = data[0].get("public_metrics") or {}
+    shares = None
+    if "retweet_count" in m or "quote_count" in m:
+        shares = (m.get("retweet_count") or 0) + (m.get("quote_count") or 0)
+    return {"views": m.get("impression_count"), "reach": None, "likes": m.get("like_count"),
+            "comments": m.get("reply_count"), "shares": shares, "saves": m.get("bookmark_count")}
