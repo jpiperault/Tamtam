@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .. import __version__, datadir, platforms
+from .. import __version__, datadir, notify, platforms
 from .common import admin_user, current_user, fetchall, get_conn
 
 router = APIRouter()
@@ -73,3 +73,123 @@ async def guide(request: Request, user=Depends(current_user)):
     if text is None:
         raise HTTPException(404, "guide introuvable")
     return {"markdown": text}
+
+
+# --- Pages légales (éditeur et contact affichés sur /confidentialite, /conditions, /privacy, /terms)
+
+class LegalIn(BaseModel):
+    operator: str = Field(default="", max_length=200)
+    contact: str = Field(default="", max_length=200)
+
+
+@router.get("/admin/legal")
+async def get_legal(request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
+    rows = {r["key"]: r["value"] for r in await fetchall(conn, "SELECT key, value FROM site_settings WHERE key IN "
+                                                               "('legal_operator', 'legal_contact')")}
+    base = request.app.state.settings.public_url
+    return {"operator": rows.get("legal_operator", ""), "contact": rows.get("legal_contact", ""),
+            "urls": {"privacy_fr": f"{base}/confidentialite", "terms_fr": f"{base}/conditions",
+                     "privacy_en": f"{base}/privacy", "terms_en": f"{base}/terms"}}
+
+
+@router.put("/admin/legal")
+async def save_legal(body: LegalIn, admin=Depends(admin_user), conn=Depends(get_conn)):
+    for key, value in (("legal_operator", body.operator.strip()), ("legal_contact", body.contact.strip())):
+        await conn.execute("INSERT INTO site_settings(key, value) VALUES (%s,%s) ON CONFLICT (key) DO UPDATE "
+                           "SET value=EXCLUDED.value, updated_at=now()", (key, value))
+    await conn.commit()
+    return {"ok": True}
+
+
+# --- Alertes Telegram
+
+async def _set(conn, key: str, value: str) -> None:
+    await conn.execute("INSERT INTO site_settings(key, value) VALUES (%s,%s) ON CONFLICT (key) DO UPDATE "
+                       "SET value=EXCLUDED.value, updated_at=now()", (key, value))
+
+
+async def _telegram_token(conn, vault) -> str:
+    conf = await notify.settings(conn)
+    token = vault.open(conf["telegram_token_enc"]) if conf.get("telegram_token_enc") else None
+    if not token:
+        raise HTTPException(409, "enregistrez d'abord le jeton du bot")
+    return token
+
+
+@router.get("/admin/telegram")
+async def get_telegram(admin=Depends(admin_user), conn=Depends(get_conn)):
+    conf = await notify.settings(conn)
+    return {"has_token": bool(conf.get("telegram_token_enc")), "bot": conf.get("telegram_bot", ""),
+            "chats": notify.chats(conf), **{k: conf.get(v) == "1" for k, v in notify.KINDS.items()}}
+
+
+class TelegramIn(BaseModel):
+    token: str | None = Field(default=None, max_length=200)   # None = garder ; "" = effacer
+    chats: list[dict] | None = Field(default=None, max_length=20)
+    failures: bool = True
+    accounts: bool = True
+    success: bool = False
+
+
+@router.put("/admin/telegram")
+async def save_telegram(body: TelegramIn, request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
+    vault = request.app.state.vault
+    if body.token is not None:
+        token = body.token.strip()
+        if token:
+            await conn.commit()
+            try:
+                me = await notify.call(token, "getMe")
+            except notify.TelegramError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            await _set(conn, "telegram_token_enc", vault.seal(token))
+            await _set(conn, "telegram_bot", me.get("username", ""))
+        else:
+            await _set(conn, "telegram_token_enc", "")
+            await _set(conn, "telegram_bot", "")
+            await _set(conn, "telegram_chats", "")
+    if body.chats is not None:
+        lines = []
+        for ch in body.chats:
+            cid = str(ch.get("id", "")).strip()
+            if cid.lstrip("-").isdigit():
+                lines.append(f"{cid}|{str(ch.get('name', ''))[:80].replace(chr(10), ' ')}")
+        await _set(conn, "telegram_chats", "\n".join(dict.fromkeys(lines)))
+    for kind, key in notify.KINDS.items():
+        await _set(conn, key, "1" if getattr(body, kind) else "0")
+    await conn.commit()
+    return await get_telegram(admin, conn)
+
+
+@router.post("/admin/telegram/discover")
+async def discover_telegram(request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
+    """Conversations qui ont écrit au bot récemment (il faut lui envoyer un message, par exemple /start)."""
+    token = await _telegram_token(conn, request.app.state.vault)
+    await conn.commit()
+    try:
+        updates = await notify.call(token, "getUpdates", {"limit": 100, "allowed_updates": ["message", "my_chat_member"]})
+    except notify.TelegramError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    found = {}
+    for u in updates:
+        msg = u.get("message") or u.get("my_chat_member") or {}
+        chat = msg.get("chat") or {}
+        if "id" in chat:
+            name = chat.get("title") or " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x) \
+                or chat.get("username") or str(chat["id"])
+            found[str(chat["id"])] = {"id": str(chat["id"]), "name": name}
+    return {"chats": list(found.values())}
+
+
+@router.post("/admin/telegram/test")
+async def test_telegram(request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
+    token = await _telegram_token(conn, request.app.state.vault)
+    chat_list = notify.chats(await notify.settings(conn))
+    await conn.commit()
+    if not chat_list:
+        raise HTTPException(409, "ajoutez au moins un destinataire")
+    sent = await notify.send_to_all(token, chat_list, "🥁 Tamtam : test des alertes réussi. Vous serez prévenu ici "
+                                                       "des posts en échec et des comptes à reconnecter.")
+    if not sent:
+        raise HTTPException(502, "aucun message n'a pu être envoyé : vérifiez que chaque destinataire a écrit au bot")
+    return {"sent": sent}

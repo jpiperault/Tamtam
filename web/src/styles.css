@@ -230,3 +230,5 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .ai-out { display: flex; flex-direction: column; gap: 6px; }
 .ai-out .label { display: flex; align-items: center; gap: 6px; }
 .ai-text { white-space: pre-wrap; background: var(--sunk); border-radius: 8px; padding: 10px 12px; font-size: 14px; line-height: 1.5; max-height: 220px; overflow: auto; }
+.tt-panel { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.check.off { opacity: .45; cursor: not-allowed; }

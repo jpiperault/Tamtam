@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from psycopg.types.json import Jsonb
 
 from .. import log, platforms, worker
-from ..platforms import PublishError
+from ..platforms import AuthExpired, PublishError
 from .common import current_user, fetchall, fetchone, get_conn, project_or_404
 
 router = APIRouter()
@@ -209,6 +209,29 @@ async def patch_account(account_id: int, body: AccountPatch, user=Depends(curren
                            (Jsonb({"privacy": body.privacy}), account_id))
     await conn.commit()
     return await fetchone(conn, f"SELECT {ACCOUNT_COLS} FROM social_accounts WHERE id=%s", (account_id,))
+
+
+SIMULATED_CREATOR = {"creator_nickname": "Compte démo", "creator_username": "demo", "creator_avatar_url": "",
+                     "privacy_level_options": ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+                     "comment_disabled": False, "duet_disabled": False, "stitch_disabled": True,
+                     "max_video_post_duration_sec": 600}
+
+
+@router.get("/accounts/{account_id}/tiktok-creator")
+async def tiktok_creator(account_id: int, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    """Infos du créateur TikTok à afficher au moment d'écrire le post (lues à chaque ouverture, comme l'exige TikTok)."""
+    acc = await fetchone(conn, "SELECT id, platform, simulated FROM social_accounts WHERE id=%s", (account_id,))
+    if not acc or acc["platform"] != "tiktok":
+        raise HTTPException(404, "compte TikTok introuvable")
+    if acc["simulated"]:
+        return {"can_post": True, **SIMULATED_CREATOR}
+    await conn.commit()
+    try:
+        full = await worker.account_with_token(request.app.state.pool, request.app.state.vault, account_id)
+        info = await platforms.tiktok.creator_info(full["access_token"])
+    except (PublishError, AuthExpired) as exc:
+        return {"can_post": False, "message": str(exc)}
+    return {"can_post": True, **{k: info.get(k) for k in SIMULATED_CREATOR}}
 
 
 @router.post("/accounts/{account_id}/test")

@@ -53,6 +53,86 @@ function Preview({ account, text, media, link, project }) {
       return (<div className="mock">{img("tall")}<div className="txt"><b>@{handle}</b> {cut(text, 150)}</div></div>);
   }
 }
+// Réglages TikTok à choisir à chaque post : écran imposé par les règles de partage de TikTok (audit).
+const TT_PRIVACY = {
+  PUBLIC_TO_EVERYONE: "Tout le monde", MUTUAL_FOLLOW_FRIENDS: "Amis (abonnés mutuels)",
+  FOLLOWER_OF_CREATOR: "Abonnés", SELF_ONLY: "Moi uniquement",
+};
+export const TT_EMPTY = { privacy_level: "", allow_comment: false, allow_duet: false, allow_stitch: false, disclose: false, brand_organic: false, brand_content: false };
+const MUSIC_URL = "https://www.tiktok.com/legal/page/global/music-usage-confirmation/en";
+const BC_URL = "https://www.tiktok.com/legal/page/global/bc-policy/en";
+
+export function tiktokIssues(o, info, kinds, media) {
+  const out = [];
+  if (info && !info.can_post) out.push(`TikTok : ${info.message || "ce compte ne peut pas publier pour le moment, réessayez plus tard."}`);
+  if (!o.privacy_level) out.push("TikTok : choisissez qui peut voir le post.");
+  if (o.disclose && !o.brand_organic && !o.brand_content) out.push("TikTok : indiquez si le contenu fait votre promotion, celle d'un tiers, ou les deux.");
+  if (o.disclose && o.brand_content && o.privacy_level === "SELF_ONLY") out.push("TikTok : un contenu de marque ne peut pas être privé.");
+  const v = media.find((m) => m.kind === "video");
+  if (info?.max_video_post_duration_sec && v?.duration_s && v.duration_s > info.max_video_post_duration_sec)
+    out.push(`TikTok : la vidéo dure ${Math.round(v.duration_s)} s, ce compte accepte ${info.max_video_post_duration_sec} s au plus.`);
+  return out;
+}
+
+function TikTokPanel({ account, value, onChange, info, isVideo }) {
+  const o = value || TT_EMPTY;
+  const set = (patch) => onChange({ ...o, ...patch });
+  const label = isVideo ? "votre vidéo" : "vos photos";
+  if (!info) return <div className="tt-panel"><Loading /></div>;
+  return (
+    <div className="tt-panel stack" id={`tt-${account.id}`}>
+      <div className="row" style={{ gap: 8 }}>
+        <Net platform="tiktok" />
+        {info.creator_avatar_url && <img className="av" src={info.creator_avatar_url} alt="" style={{ width: 24, height: 24 }} />}
+        <span>Publié sur le compte TikTok <b>{info.creator_nickname || account.name}</b></span>
+      </div>
+      {!info.can_post ? <div className="notice danger small"><Icon name="alert" size={16} />{info.message || "Ce compte ne peut pas publier pour le moment : réessayez plus tard."}</div> : <>
+        <label className="field">Qui peut voir {label} ?
+          <select className="select tt-privacy" value={o.privacy_level} onChange={(e) => set({ privacy_level: e.target.value })}>
+            <option value="" disabled>Choisir…</option>
+            {(info.privacy_level_options || []).map((k) => (
+              <option key={k} value={k} disabled={k === "SELF_ONLY" && o.disclose && o.brand_content}
+                title={k === "SELF_ONLY" && o.disclose && o.brand_content ? "Un contenu de marque ne peut pas être privé." : undefined}>{TT_PRIVACY[k] || k}</option>
+            ))}
+          </select>
+        </label>
+        <div className="field"><span className="label">Autoriser</span>
+          <div className="row" style={{ gap: 16 }}>
+            <label className={`check${info.comment_disabled ? " off" : ""}`}><input type="checkbox" className="tt-comment" disabled={info.comment_disabled} checked={o.allow_comment && !info.comment_disabled} onChange={(e) => set({ allow_comment: e.target.checked })} /><span>Commentaires</span></label>
+            {isVideo && <label className={`check${info.duet_disabled ? " off" : ""}`}><input type="checkbox" disabled={info.duet_disabled} checked={o.allow_duet && !info.duet_disabled} onChange={(e) => set({ allow_duet: e.target.checked })} /><span>Duo</span></label>}
+            {isVideo && <label className={`check${info.stitch_disabled ? " off" : ""}`}><input type="checkbox" disabled={info.stitch_disabled} checked={o.allow_stitch && !info.stitch_disabled} onChange={(e) => set({ allow_stitch: e.target.checked })} /><span>Collage</span></label>}
+          </div>
+        </div>
+        <div className="field">
+          <label className="check"><input type="checkbox" className="tt-disclose" checked={o.disclose} onChange={(e) => set({ disclose: e.target.checked, ...(e.target.checked ? {} : { brand_organic: false, brand_content: false }) })} />
+            <span><b>Divulgation du contenu</b><br /><span className="small muted">Activez si ce contenu fait la promotion de vous-même, d'une marque, d'un produit ou d'un service.</span></span></label>
+          {o.disclose && (
+            <div className="stack" style={{ gap: 6, paddingLeft: 26, marginTop: 6 }}>
+              <label className="check"><input type="checkbox" className="tt-brand-organic" checked={o.brand_organic} onChange={(e) => set({ brand_organic: e.target.checked })} />
+                <span>Votre marque<br /><span className="small muted">Vous faites la promotion de vous-même ou de votre propre activité.</span></span></label>
+              <label className="check" title={o.privacy_level === "SELF_ONLY" ? "La visibilité d'un contenu de marque ne peut pas être « Moi uniquement »." : undefined}>
+                <input type="checkbox" className="tt-brand-content" disabled={o.privacy_level === "SELF_ONLY"} checked={o.brand_content} onChange={(e) => set({ brand_content: e.target.checked })} />
+                <span>Contenu de marque<br /><span className="small muted">Vous faites la promotion d'une autre marque ou d'un tiers.{o.privacy_level === "SELF_ONLY" ? " Impossible avec la visibilité « Moi uniquement »." : ""}</span></span></label>
+              {(o.brand_organic || o.brand_content) ? (
+                <div className="notice small">Votre {isVideo ? "vidéo" : "publication photo"} sera étiquetée « {o.brand_content ? "Partenariat rémunéré" : "Contenu promotionnel"} ».</div>
+              ) : <div className="small muted">Vous devez indiquer si votre contenu fait votre promotion, celle d'un tiers, ou les deux.</div>}
+            </div>
+          )}
+        </div>
+      </>}
+    </div>
+  );
+}
+
+export function TikTokConsent({ options }) {
+  const bc = options.some((o) => o?.disclose && o?.brand_content);
+  return (
+    <p className="small muted tt-consent" style={{ margin: 0 }}>
+      En publiant, vous acceptez {bc ? <>la <a href={BC_URL} target="_blank" rel="noreferrer">Politique relative au contenu de marque</a> et </> : ""}la <a href={MUSIC_URL} target="_blank" rel="noreferrer">Confirmation d'utilisation de la musique</a> de TikTok.
+    </p>
+  );
+}
+
 const TONE_OPTIONS = [
   { value: "", label: "Selon le projet" }, { value: "enthousiaste", label: "Enthousiaste" },
   { value: "pro", label: "Pro" }, { value: "decontracte", label: "Décontracté" }, { value: "humour", label: "Humour" },
@@ -146,6 +226,8 @@ export default function Composer({ editId, copyId, date }) {
   const [tab, setTab] = useState("all");
   const [media, setMedia] = useState([]);
   const [claude, setClaude] = useState(false);
+  const [ttOpts, setTtOpts] = useState({});
+  const [ttInfo, setTtInfo] = useState({});
   const [aiStatus, setAiStatus] = useState(null);
   const [link, setLink] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -185,6 +267,9 @@ export default function Composer({ editId, copyId, date }) {
         const ov = {};
         p.targets.forEach((t) => { if (t.body_override != null && t.social_account_id) ov[t.social_account_id] = t.body_override; });
         setOverrides(ov);
+        const tt = {};
+        p.targets.forEach((t) => { if (t.platform === "tiktok" && t.social_account_id) tt[t.social_account_id] = { ...TT_EMPTY, ...(t.options || {}) }; });
+        setTtOpts(tt);
         if (editId) {
           if (p.status === "draft") setMode(p.scheduled_at ? "at" : "draft");
           else setMode("at");
@@ -196,6 +281,7 @@ export default function Composer({ editId, copyId, date }) {
         setLoadedProject(projectId);
         setMedia([]);
         setOverrides({});
+        setTtOpts({});
         setTab("all");
       }
     })();
@@ -213,12 +299,23 @@ export default function Composer({ editId, copyId, date }) {
     if (platform === "facebook" && !fbShort) return withUtm(link.trim(), "facebook", campaign.trim()) || link.trim();
     return shortLink;
   };
+  const ttChosen = chosen.filter((a) => a.platform === "tiktok");
+  const ttKey = ttChosen.map((a) => a.id).join(",");
+  useEffect(() => {
+    // Infos du créateur TikTok lues à chaque ouverture de l'écran (exigence TikTok) : pseudo, visibilités permises…
+    ttChosen.forEach((a) => {
+      api.get(`/accounts/${a.id}/tiktok-creator`).then((info) => setTtInfo((s) => ({ ...s, [a.id]: info })))
+        .catch((e) => setTtInfo((s) => ({ ...s, [a.id]: { can_post: false, message: e.message } })));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ttKey]);
   const issues = useMemo(() => {
     const out = [];
     chosen.forEach((a) => out.push(...problems(rules, a.platform, textFor(a.id), kinds, hasLink)));
+    ttChosen.forEach((a) => out.push(...tiktokIssues(ttOpts[a.id] || TT_EMPTY, ttInfo[a.id], kinds, media)));
     return [...new Set(out)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chosen, body, overrides, media, link, rules]);
+  }, [chosen, body, overrides, media, link, rules, ttOpts, ttInfo]);
   const notes = useMemo(() => [...new Set(chosen.flatMap((a) => warnings(a.platform, kinds, a, hasLink)))], [chosen, media]); // eslint-disable-line
 
   if (!accounts) return <Loading />;
@@ -254,11 +351,12 @@ export default function Composer({ editId, copyId, date }) {
       project_id: projectId, body, account_ids: selected, media_ids: media.map((x) => x.id),
       overrides: Object.fromEntries(Object.entries(overrides).filter(([k]) => selected.includes(Number(k))).map(([k, v]) => [String(k), v])),
       link_url: link.trim(), campaign: campaign.trim(), facebook_short_link: fbShort, mode: m,
+      tiktok: Object.fromEntries(ttChosen.map((a) => [String(a.id), { ...TT_EMPTY, ...(ttOpts[a.id] || {}) }])),
       scheduled_at: m === "at" || (m === "draft" && mode === "at") ? new Date(when).toISOString() : null,
     };
     setBusy(true);
     const r = await run(() => (editId ? api.put(`/posts/${editId}`, payload) : api.post("/posts", payload)),
-      m === "draft" ? "Brouillon enregistré" : m === "now" ? "Envoi lancé : suivez-le dans Publications" : "Post programmé");
+      m === "draft" ? "Brouillon enregistré" : m === "now" ? `Envoi lancé : suivez-le dans Publications${ttChosen.length ? ". TikTok peut mettre quelques minutes à traiter le post avant qu'il apparaisse sur votre profil" : ""}` : "Post programmé");
     setBusy(false);
     if (r) window.location.hash = m === "draft" ? "#/?status=draft" : "#/";
   };
@@ -312,15 +410,16 @@ export default function Composer({ editId, copyId, date }) {
           </div>
 
           <div className="field">
-            <div className="row" style={{ alignItems: "flex-end", gap: 8 }}>
-              <div className="tabs grow" role="tablist">
-                {tabs.map(([k, l]) => (
-                  <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
-                ))}
-              </div>
+            <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+              <span className="label">Texte</span>
               <button type="button" id="btn-claude" className="btn small" disabled={chosen.length === 0}
                 title={chosen.length === 0 ? "Choisissez d'abord un compte" : "Proposer un texte avec Claude"} onClick={openClaude}>
                 <Icon name="sparkle" size={14} />Rédiger avec Claude</button>
+            </div>
+            <div className="tabs" role="tablist">
+              {tabs.map(([k, l]) => (
+                <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
+              ))}
             </div>
             <textarea id="post-text" className="textarea" aria-label="Texte du post" value={tab === "all" ? body : textFor(tab)}
               onChange={(e) => editText(e.target.value)} placeholder="Qu'avez-vous à annoncer ?" />
@@ -403,9 +502,18 @@ export default function Composer({ editId, copyId, date }) {
             </div>
           </div>
 
+          {ttChosen.length > 0 && (
+            <div className="field">
+              <span className="label">Réglages TikTok</span>
+              {ttChosen.map((a) => <TikTokPanel key={a.id} account={a} info={ttInfo[a.id]} isVideo={kinds.includes("video")}
+                value={ttOpts[a.id]} onChange={(v) => setTtOpts((s) => ({ ...s, [a.id]: v }))} />)}
+            </div>
+          )}
+
           {issues.length > 0 && <div className="stack" style={{ gap: 6 }}>{issues.map((t) => <div key={t} className="notice danger"><Icon name="alert" size={16} />{t}</div>)}</div>}
           {notes.length > 0 && <div className="stack" style={{ gap: 6 }}>{notes.map((t) => <div key={t} className="notice warn"><Icon name="alert" size={16} />{t}</div>)}</div>}
 
+          {ttChosen.length > 0 && <TikTokConsent options={ttChosen.map((a) => ttOpts[a.id])} />}
           <div className="actions">
             <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>Enregistrer le brouillon</button>
             <button type="button" className="btn primary" disabled={busy || issues.length > 0 || chosen.length === 0 || uploading > 0}

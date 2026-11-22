@@ -43,6 +43,7 @@ class MediaFile:
     url: str           # adresse publique (Meta et TikTok viennent la chercher)
     mime: str
     size: int
+    duration_s: float | None = None   # vidéos : durée en secondes, si connue
 
 
 @dataclass
@@ -50,6 +51,7 @@ class Content:
     text: str
     link: str = ""                     # lien court suivi, déjà prêt
     media: list[MediaFile] = field(default_factory=list)
+    options: dict = field(default_factory=dict)   # réglages choisis pour ce post (TikTok : visibilité, etc.)
 
 
 @dataclass

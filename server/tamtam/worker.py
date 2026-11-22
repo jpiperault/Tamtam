@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from . import log, media as media_mod, platforms
+from . import log, media as media_mod, notify, platforms
 from .platforms import AuthExpired, Content, MediaFile, PublishError
 
 _log = log.get("worker")
@@ -124,7 +124,8 @@ async def publish_target(app, target_id: int) -> None:
         cur = await conn.execute("SELECT m.* FROM post_media pm JOIN media m ON m.id=pm.media_id "
                                  "WHERE pm.post_id=%s ORDER BY pm.position", (post["id"],))
         files = [MediaFile(kind=m["kind"], path=media_mod.path_for(s.data_dir, m["token"], m["ext"]),
-                           url=f"{s.public_url}/m/{m['token']}{m['ext']}", mime=m["mime"], size=m["size"])
+                           url=f"{s.public_url}/m/{m['token']}{m['ext']}", mime=m["mime"], size=m["size"],
+                           duration_s=m.get("duration_s"))
                  for m in await cur.fetchall()]
         link = ""
         if post["link_url"] and target["platform"] == "facebook" and not post["facebook_short_link"]:
@@ -135,11 +136,12 @@ async def publish_target(app, target_id: int) -> None:
         await conn.commit()
     text = target["body_override"] if target["body_override"] is not None else post["body"]
     status, err, ext_id, ext_url, retry_at = "published", "", "", "", None
+    account_alert = False
     try:
         if target["social_account_id"] is None:
             raise PublishError("compte social déconnecté : reconnectez-le puis réessayez")
         acc = await account_with_token(pool, vault, target["social_account_id"])
-        content = Content(text=text, link=link, media=files)
+        content = Content(text=text, link=link, media=files, options=dict(target.get("options") or {}))
         try:
             res = await asyncio.wait_for(platforms.publish(target["platform"], acc, content, s.graph_version),
                                          PUBLISH_TIMEOUT_S)
@@ -153,9 +155,12 @@ async def publish_target(app, target_id: int) -> None:
     except AuthExpired as exc:
         status, err = "failed", str(exc)
         async with pool.connection() as conn:
-            await conn.execute("UPDATE social_accounts SET status='expired', last_error=%s, updated_at=now() "
-                               "WHERE id=%s", (err[:500], target["social_account_id"]))
+            cur = await conn.execute("UPDATE social_accounts SET status='expired', last_error=%s, updated_at=now() "
+                                     "WHERE id=%s RETURNING (SELECT status FROM social_accounts WHERE id=%s) AS before",
+                                     (err[:500], target["social_account_id"], target["social_account_id"]))
+            row = await cur.fetchone()
             await conn.commit()
+        account_alert = bool(row and row["before"] == "ok")
     except PublishError as exc:
         err = str(exc)
         if exc.retry and target["attempts"] < MAX_ATTEMPTS:
@@ -180,6 +185,20 @@ async def publish_target(app, target_id: int) -> None:
         await recompute_status(conn, post["id"])
         await conn.commit()
     _log.info("post %s → %s : %s%s", post["id"], target["platform"], status, f" ({err})" if err else "")
+    if status in ("failed", "published") or account_alert:
+        async with pool.connection() as conn:
+            cur = await conn.execute("SELECT a.name, a.handle, pr.name AS project FROM projects pr "
+                                     "LEFT JOIN social_accounts a ON a.id=%s WHERE pr.id=%s",
+                                     (target["social_account_id"], post["project_id"]))
+            names = await cur.fetchone() or {}
+        acc_name = names.get("name") or names.get("handle") or "compte retiré"
+        project = names.get("project") or ""
+        if account_alert:
+            notify.fire(app, "accounts", notify.account_text(s.public_url, target["platform"], acc_name, project, err))
+        if status == "failed":
+            notify.fire(app, "failures", notify.failure_text(s.public_url, target["platform"], acc_name, project, err))
+        elif status == "published":
+            notify.fire(app, "success", notify.success_text(target["platform"], acc_name, project, ext_url))
 
 
 async def claim(pool, limit: int = 4) -> list[int]:
@@ -213,9 +232,41 @@ async def reset_interrupted(pool) -> None:
         await conn.commit()
 
 
+async def check_accounts(app) -> int:
+    """Vérification quotidienne des comptes connectés : un compte qui ne répond plus passe « à reconnecter » et
+    déclenche une alerte, avant qu'un post programmé n'échoue. Renvoie le nombre de comptes passés en erreur."""
+    from .platforms import meta, tiktok
+
+    s, pool, vault = app.state.settings, app.state.pool, app.state.vault
+    async with pool.connection() as conn:
+        cur = await conn.execute("SELECT a.id, a.platform, a.name, a.handle, p.name AS project FROM social_accounts a "
+                                 "JOIN projects p ON p.id=a.project_id WHERE a.status='ok' AND NOT a.simulated")
+        accounts = await cur.fetchall()
+    broken = 0
+    for a in accounts:
+        try:
+            acc = await account_with_token(pool, vault, a["id"])
+            if a["platform"] in ("facebook", "instagram"):
+                await meta.check_token(acc, s.graph_version)
+            elif a["platform"] == "tiktok":
+                await tiktok.creator_info(acc["access_token"])
+        except AuthExpired as exc:
+            async with pool.connection() as conn:
+                await conn.execute("UPDATE social_accounts SET status='expired', last_error=%s, updated_at=now() "
+                                   "WHERE id=%s", (str(exc)[:500], a["id"]))
+                await conn.commit()
+            broken += 1
+            notify.fire(app, "accounts", notify.account_text(s.public_url, a["platform"], a["name"] or a["handle"],
+                                                             a["project"], str(exc)))
+        except Exception as exc:  # noqa: BLE001 - panne passagère du réseau : on réessaiera demain
+            _log.info("vérification du compte %s reportée : %s", a["id"], exc)
+    return broken
+
+
 async def run(app, stop: asyncio.Event) -> None:
     sem = asyncio.Semaphore(3)
     running: set[asyncio.Task] = set()
+    next_check = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     async def one(tid: int):
         async with sem:
@@ -230,6 +281,11 @@ async def run(app, stop: asyncio.Event) -> None:
                     t.add_done_callback(running.discard)
         except Exception as exc:
             _log.warning("boucle de publication : %s", exc)
+        if datetime.now(timezone.utc) >= next_check:
+            next_check = datetime.now(timezone.utc) + timedelta(hours=24)
+            t = asyncio.create_task(check_accounts(app))
+            running.add(t)
+            t.add_done_callback(running.discard)
         try:
             await asyncio.wait_for(stop.wait(), TICK_S)
         except asyncio.TimeoutError:

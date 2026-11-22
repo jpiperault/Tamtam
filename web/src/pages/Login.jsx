@@ -42,6 +42,7 @@ export default function Login({ onLogin }) {
         {error && <div className="notice danger" role="alert">{error}</div>}
         <button className="btn primary" type="submit" disabled={busy}>{busy ? "Connexion…" : "Se connecter"}</button>
         <p className="muted small" style={{ margin: 0 }}>Pas encore de compte ? Demandez-le à l'administrateur.</p>
+        <p className="muted small" style={{ margin: 0 }}><a href="/confidentialite">Confidentialité</a> · <a href="/conditions">Conditions d'utilisation</a></p>
       </form>
     </div>
   );

@@ -9,12 +9,6 @@ const CARDS = [
   { platform: "x", provider: "x", req: "Tout compte X. L'accès à l'API X en écriture peut être payant selon l'offre de l'application développeur." },
   { platform: "tiktok", provider: "tiktok", req: "Tout compte TikTok. Tant que l'application n'a pas passé l'audit TikTok, les posts ne sont visibles que par vous." },
 ];
-const PRIVACY = {
-  PUBLIC_TO_EVERYONE: "Tout le monde",
-  MUTUAL_FOLLOW_FRIENDS: "Amis",
-  FOLLOWER_OF_CREATOR: "Abonnés",
-  SELF_ONLY: "Moi uniquement",
-};
 
 function Chooser({ id, onDone }) {
   const run = useRun();
@@ -66,7 +60,6 @@ function AccountItem({ a, onChange }) {
     }
   };
   const del = async () => { if (await run(() => api.del(`/accounts/${a.id}`), "Compte retiré de Tamtam")) onChange(); };
-  const privacy = async (v) => { if (await run(() => api.patch(`/accounts/${a.id}`, { privacy: v }), "Visibilité enregistrée")) onChange(); };
   return (
     <div className="acc-item">
       {a.avatar_url ? <img className="av" src={a.avatar_url} alt="" /> : <div className="av" />}
@@ -76,13 +69,6 @@ function AccountItem({ a, onChange }) {
       {a.simulated && <Chip tone="warn">démo</Chip>}
       {a.status === "ok" ? <Chip tone="ok">Connecté</Chip> : <Chip tone="bad">{a.status === "expired" ? "À reconnecter" : "Erreur"}</Chip>}
       <div className="row" style={{ width: "100%", justifyContent: "flex-end", gap: 6 }}>
-        {a.platform === "tiktok" && (
-          <label className="small muted row" style={{ gap: 6 }}>Visibilité
-            <select className="select" style={{ width: "auto", padding: "4px 8px" }} value={a.meta?.privacy || "PUBLIC_TO_EVERYONE"} onChange={(e) => privacy(e.target.value)}>
-              {Object.entries(PRIVACY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-          </label>
-        )}
         <button type="button" className="btn small" onClick={test}>Vérifier</button>
         {confirm ? <>
           <button type="button" className="btn small danger" onClick={del}>Confirmer le retrait</button>

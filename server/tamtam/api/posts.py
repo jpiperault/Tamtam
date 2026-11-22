@@ -4,12 +4,35 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from .. import platforms, worker
 from .common import current_user, fetchall, fetchone, get_conn, project_or_404
 
 router = APIRouter()
+
+
+class TikTokOptions(BaseModel):
+    """Réglages TikTok choisis à chaque post (exigés par les règles de partage de TikTok : rien par défaut)."""
+    privacy_level: str = Field(default="", pattern="^(|PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY)$")
+    allow_comment: bool = False
+    allow_duet: bool = False
+    allow_stitch: bool = False
+    disclose: bool = False          # « Content Disclosure Setting »
+    brand_organic: bool = False     # « Votre marque » → « Contenu promotionnel »
+    brand_content: bool = False     # « Contenu de marque » → « Partenariat rémunéré »
+
+
+def tiktok_problems(o: TikTokOptions) -> list[str]:
+    out = []
+    if not o.privacy_level:
+        out.append("TikTok : choisissez qui peut voir le post.")
+    if o.disclose and not (o.brand_organic or o.brand_content):
+        out.append("TikTok : indiquez si le contenu fait votre promotion, celle d'un tiers, ou les deux.")
+    if o.disclose and o.brand_content and o.privacy_level == "SELF_ONLY":
+        out.append("TikTok : un contenu de marque ne peut pas être privé.")
+    return out
 
 
 class PostIn(BaseModel):
@@ -21,6 +44,7 @@ class PostIn(BaseModel):
     link_url: str = Field(default="", max_length=2000)
     campaign: str = Field(default="", max_length=80)
     facebook_short_link: bool = False   # Facebook : lien court suivi /l/… au lieu du lien direct
+    tiktok: dict[str, TikTokOptions] = Field(default_factory=dict)   # identifiant du compte TikTok → réglages
     mode: str = Field(default="draft", pattern="^(draft|now|at)$")
     scheduled_at: datetime | None = None
 
@@ -31,13 +55,14 @@ async def _post_full(conn, post_id: int) -> dict | None:
     if not post:
         return None
     post["targets"] = await fetchall(conn, """
-        SELECT t.id, t.platform, t.social_account_id, t.body_override, t.status, t.external_url, t.error, t.attempts,
+        SELECT t.id, t.platform, t.social_account_id, t.body_override, t.options, t.status, t.external_url, t.error, t.attempts,
                t.published_at, t.not_before, a.name AS account_name, a.handle AS account_handle,
                a.simulated, l.code AS link_code, COALESCE(l.clicks, 0) AS clicks
         FROM post_targets t LEFT JOIN social_accounts a ON a.id=t.social_account_id
         LEFT JOIN links l ON l.post_target_id=t.id
         WHERE t.post_id=%s ORDER BY array_position(ARRAY['instagram','facebook','x','tiktok'], t.platform)""", (post_id,))
-    post["media"] = [{"id": m["id"], "kind": m["kind"], "url": f"/m/{m['token']}{m['ext']}", "filename": m["filename"]}
+    post["media"] = [{"id": m["id"], "kind": m["kind"], "url": f"/m/{m['token']}{m['ext']}", "filename": m["filename"],
+                      "duration_s": m["duration_s"]}
                      for m in await fetchall(conn, "SELECT m.* FROM post_media pm JOIN media m ON m.id=pm.media_id "
                                                    "WHERE pm.post_id=%s ORDER BY pm.position", (post_id,))]
     return post
@@ -69,6 +94,8 @@ async def _validate(conn, body: PostIn) -> tuple[list[dict], list[dict]]:
         for a in accounts:
             text = body.overrides.get(str(a["id"]), body.body)
             problems += platforms.check(a["platform"], text, kinds, bool(body.link_url))
+            if a["platform"] == "tiktok":
+                problems += tiktok_problems(body.tiktok.get(str(a["id"])) or TikTokOptions())
         if problems:
             raise HTTPException(422, " ".join(dict.fromkeys(problems)))
         if body.mode == "at":
@@ -85,9 +112,11 @@ async def _write(conn, post_id: int, body: PostIn, accounts: list[dict], media: 
     await conn.execute("DELETE FROM post_media WHERE post_id=%s", (post_id,))
     for a in accounts:
         ov = body.overrides.get(str(a["id"]))
-        await conn.execute("INSERT INTO post_targets(post_id, social_account_id, platform, body_override) "
-                           "VALUES (%s,%s,%s,%s)", (post_id, a["id"], a["platform"],
-                                                    ov if ov is not None and ov != body.body else None))
+        opts = body.tiktok.get(str(a["id"])) if a["platform"] == "tiktok" else None
+        await conn.execute("INSERT INTO post_targets(post_id, social_account_id, platform, body_override, options) "
+                           "VALUES (%s,%s,%s,%s,%s)", (post_id, a["id"], a["platform"],
+                                                       ov if ov is not None and ov != body.body else None,
+                                                       Jsonb(opts.model_dump() if opts else {})))
     for i, m in enumerate(media):
         await conn.execute("INSERT INTO post_media(post_id, media_id, position) VALUES (%s,%s,%s)", (post_id, m["id"], i))
 

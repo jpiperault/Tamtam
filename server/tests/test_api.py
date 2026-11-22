@@ -217,7 +217,8 @@ def test_publish_flow_and_links(client, project, accounts):
     post = ok(client.post("/api/v1/posts", json={
         "project_id": project["id"], "mode": "now", "body": "Nouvelle version !", "account_ids": ids,
         "media_ids": [img["id"]], "link_url": "https://app.example.test/dl?ref=a&utm_source=old",
-        "campaign": "lancement", "facebook_short_link": True}), 201)
+        "campaign": "lancement", "facebook_short_link": True,
+        "tiktok": {str(accounts["tiktok"]["id"]): {"privacy_level": "PUBLIC_TO_EVERYONE", "allow_comment": True}}}), 201)
     assert post["status"] == "scheduled" and len(post["targets"]) == 4 and post["facebook_short_link"]
     run_worker(client)
     post = ok(client.get(f"/api/v1/posts/{post['id']}"))
@@ -493,3 +494,106 @@ def test_ai_sees_media(client, project, monkeypatch):
                                                   "platforms": ["x"], "media_ids": [bad["id"]]}))
     assert "n'a pas pu être montré" in r["note"]
     ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5", "daily_limit": 100}))
+
+
+def test_tiktok_post_settings(client, project, accounts):
+    tt = accounts["tiktok"]["id"]
+    info = ok(client.get(f"/api/v1/accounts/{tt}/tiktok-creator"))
+    assert info["can_post"] and "SELF_ONLY" in info["privacy_level_options"] and info["creator_nickname"]
+    assert client.get(f"/api/v1/accounts/{accounts['x']['id']}/tiktok-creator").status_code == 404
+    img = ok(client.post(f"/api/v1/projects/{project['id']}/media",
+                         files={"file": ("p.png", png_bytes((1, 2, 3, 255)), "image/png")}), 201)
+    base = {"project_id": project["id"], "mode": "now", "body": "TikTok", "account_ids": [tt], "media_ids": [img["id"]]}
+    # rien par défaut : la visibilité doit être choisie
+    r = client.post("/api/v1/posts", json=base)
+    assert r.status_code == 422 and "qui peut voir" in r.json()["detail"]
+    r = client.post("/api/v1/posts", json={**base, "tiktok": {str(tt): {"privacy_level": "PUBLIC_TO_EVERYONE", "disclose": True}}})
+    assert r.status_code == 422 and "promotion" in r.json()["detail"]
+    r = client.post("/api/v1/posts", json={**base, "tiktok": {str(tt): {"privacy_level": "SELF_ONLY", "disclose": True,
+                                                                         "brand_content": True}}})
+    assert r.status_code == 422 and "ne peut pas être privé" in r.json()["detail"]
+    # brouillon sans réglages accepté ; réglages enregistrés et relus
+    opts = {"privacy_level": "MUTUAL_FOLLOW_FRIENDS", "allow_comment": True, "disclose": True, "brand_organic": True}
+    post = ok(client.post("/api/v1/posts", json={**base, "mode": "draft", "tiktok": {str(tt): opts}}), 201)
+    t = post["targets"][0]
+    assert t["options"]["privacy_level"] == "MUTUAL_FOLLOW_FRIENDS" and t["options"]["brand_organic"] is True
+    assert t["options"]["allow_duet"] is False
+
+
+def test_tiktok_settings_unit():
+    from tamtam.platforms import PublishError
+    from tamtam.platforms.tiktok import post_settings
+
+    info = {"privacy_level_options": ["PUBLIC_TO_EVERYONE", "SELF_ONLY"], "comment_disabled": False,
+            "duet_disabled": True, "stitch_disabled": False}
+    out = post_settings({"privacy_level": "PUBLIC_TO_EVERYONE", "allow_comment": True, "allow_duet": True,
+                         "disclose": True, "brand_content": True}, info, True)
+    assert out == {"privacy_level": "PUBLIC_TO_EVERYONE", "disable_comment": False, "brand_organic_toggle": False,
+                   "brand_content_toggle": True, "disable_duet": True, "disable_stitch": True}
+    photo = post_settings({"privacy_level": "SELF_ONLY"}, info, False)
+    assert photo["disable_comment"] is True and "disable_duet" not in photo
+    for bad in ({}, {"privacy_level": "FOLLOWER_OF_CREATOR"}):
+        with pytest.raises(PublishError):
+            post_settings(bad, info, True)
+
+
+def test_legal_pages(client):
+    client.cookies.clear()
+    for page in ("confidentialite", "conditions", "privacy", "terms"):
+        r = client.get(f"/{page}")
+        assert r.status_code == 200 and "<h1>" in r.text and "Tamtam" in r.text
+    assert "[à compléter dans Administration]" in client.get("/confidentialite").text
+    login(client, *ADMIN)
+    ok(client.put("/api/v1/admin/legal", json={"operator": "Studio <Test>", "contact": "contact@example.test"}))
+    page = client.get("/privacy").text
+    assert "Studio &lt;Test&gt;" in page and "contact@example.test" in page and "<script" not in page
+    assert ok(client.get("/api/v1/admin/legal"))["urls"]["terms_en"].endswith("/terms")
+    login(client, *MEMBER)
+    assert client.get("/api/v1/admin/legal").status_code == 403
+    login(client, *ADMIN)
+
+
+def test_telegram_alerts(client, project, accounts, monkeypatch):
+    from tamtam import notify
+
+    calls = []
+
+    async def fake_call(token, method, payload=None):
+        calls.append((token, method, payload))
+        if token == "bad":
+            raise notify.TelegramError("jeton du bot refusé par Telegram")
+        if method == "getMe":
+            return {"username": "tamtam_test_bot"}
+        if method == "getUpdates":
+            return [{"message": {"chat": {"id": 4242, "first_name": "Julie"}}},
+                    {"my_chat_member": {"chat": {"id": -100777, "title": "Équipe"}}}]
+        return {"message_id": 1}
+
+    monkeypatch.setattr(notify, "call", fake_call)
+    assert client.put("/api/v1/admin/telegram", json={"token": "bad"}).status_code == 422
+    t = ok(client.put("/api/v1/admin/telegram", json={"token": "123:abc"}))
+    assert t["has_token"] and t["bot"] == "tamtam_test_bot" and t["failures"] and not t["success"]
+    assert "123:abc" not in str(ok(client.get("/api/v1/admin/telegram")))
+    assert client.post("/api/v1/admin/telegram/test").status_code == 409   # aucun destinataire
+    found = ok(client.post("/api/v1/admin/telegram/discover"))["chats"]
+    assert {c["id"] for c in found} == {"4242", "-100777"}
+    t = ok(client.put("/api/v1/admin/telegram", json={"chats": found}))
+    assert len(t["chats"]) == 2
+    assert ok(client.post("/api/v1/admin/telegram/test"))["sent"] == 2
+    # un post qui échoue déclenche une alerte
+    calls.clear()
+    post = ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Alerte",
+                                                 "account_ids": [accounts["x"]["id"]]}), 201)
+    with psycopg.connect(URL, autocommit=True) as c:
+        c.execute("UPDATE post_targets SET social_account_id=NULL WHERE post_id=%s", (post["id"],))
+    run_worker(client)
+
+    async def drain():
+        import asyncio
+        await asyncio.gather(*list(notify._tasks))
+
+    client.portal.call(drain)
+    texts = [p["text"] for _, m, p in calls if m == "sendMessage"]
+    assert len(texts) == 2 and all("échec de publication sur X" in t for t in texts)
+    ok(client.put("/api/v1/admin/telegram", json={"token": ""}))
+    assert not ok(client.get("/api/v1/admin/telegram"))["has_token"]

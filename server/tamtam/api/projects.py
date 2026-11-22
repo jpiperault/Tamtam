@@ -69,7 +69,7 @@ async def patch_project(project_id: int, body: ProjectPatch, user=Depends(curren
 
 # --- Médias
 
-MEDIA_COLS = "id, project_id, token, ext, filename, mime, kind, size, width, height, created_at"
+MEDIA_COLS = "id, project_id, token, ext, filename, mime, kind, size, width, height, duration_s, created_at"
 
 
 def media_out(m: dict) -> dict:
@@ -112,9 +112,10 @@ async def upload_media(project_id: int, request: Request, file: UploadFile = Fil
         except FileNotFoundError:
             pass
     row = await fetchone(conn, f"INSERT INTO media(project_id, token, ext, filename, mime, kind, size, width, height, "
-                               f"created_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING {MEDIA_COLS}",
+                               f"duration_s, created_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING {MEDIA_COLS}",
                          (project_id, info["token"], info["ext"], (file.filename or "")[:200], info["mime"],
-                          info["kind"], info["size"], info["width"], info["height"], user["id"]))
+                          info["kind"], info["size"], info["width"], info["height"], info.get("duration_s"),
+                          user["id"]))
     await conn.commit()
     return media_out(row)
 

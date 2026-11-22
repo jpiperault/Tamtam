@@ -1,5 +1,21 @@
 # Journal
 
+## 1.3.0 — 22 novembre 2026
+
+- **TikTok, écran conforme à l'audit** : réglages choisis à chaque post (compte affiché, « Qui peut voir » sans
+  valeur par défaut et limité aux options permises, commentaires / duo / collage décochés et grisés si le compte les
+  désactive, divulgation du contenu « Votre marque » / « Contenu de marque » avec l'étiquette correspondante, phrase
+  d'acceptation des règles de TikTok, durée maximale de vidéo vérifiée, message de traitement après l'envoi).
+  Le réglage de visibilité par compte (page Comptes) est supprimé.
+- **Pages légales publiques** (français et anglais) : `/confidentialite`, `/conditions`, `/privacy`, `/terms`, avec
+  éditeur et contact saisis dans Administration ; liens sur la page de connexion.
+- **Alertes Telegram** : post en échec, compte à reconnecter (vérification quotidienne des comptes), post publié en
+  option ; configuration guidée dans Administration (bot, recherche des conversations, message de test).
+- Durée des vidéos enregistrée à l'envoi. Bouton « Rédiger avec Claude » déplacé au-dessus des onglets de texte.
+
+Vérifié : tests d'API (réglages TikTok, pages légales, alertes avec un faux Telegram), écran TikTok dans le
+navigateur en mode simulation. **Pas encore vérifié** : un vrai envoi TikTok avec ces réglages, un vrai bot Telegram.
+
 ## 1.2.0 — 21 novembre 2026
 
 - **Claude regarde les médias** du post avant de rédiger : les images, et pour une vidéo 4 images fixes réparties

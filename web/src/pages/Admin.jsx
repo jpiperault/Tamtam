@@ -118,6 +118,96 @@ function ClaudeCard() {
   );
 }
 
+function LegalCard() {
+  const run = useRun();
+  const { data, error, reload } = useLoad(() => api.get("/admin/legal"), []);
+  const [f, setF] = useState(null);
+  if (!data) return <Loading error={error} />;
+  const v = f ?? { operator: data.operator, contact: data.contact };
+  const save = async (e) => {
+    e.preventDefault();
+    if (await run(() => api.put("/admin/legal", v), "Pages légales mises à jour")) { setF(null); reload(); }
+  };
+  const done = data.operator && data.contact;
+  return (
+    <form className="card stack" onSubmit={save} style={{ marginBottom: 20 }}>
+      <div className="row"><h2 className="grow">Pages légales</h2>{done ? <Chip tone="ok">Complètes</Chip> : <Chip tone="warn">À compléter</Chip>}</div>
+      <p className="small muted" style={{ margin: 0 }}>Pages publiques demandées par TikTok, Meta, LinkedIn et Google lors de la validation des applications. Copiez leurs adresses dans les portails développeurs.</p>
+      <div className="grid2">
+        <Field label="Éditeur (votre nom ou celui de votre société)"><input id="legal-operator" className="input" maxLength={200} value={v.operator} onChange={(e) => setF({ ...v, operator: e.target.value })} /></Field>
+        <Field label="Contact (adresse e-mail)"><input id="legal-contact" className="input" maxLength={200} value={v.contact} onChange={(e) => setF({ ...v, contact: e.target.value })} /></Field>
+      </div>
+      <div className="stack" style={{ gap: 6 }}>
+        <span className="small">Politique de confidentialité (FR / EN)</span>
+        <Copy text={data.urls.privacy_fr} /><Copy text={data.urls.privacy_en} />
+        <span className="small">Conditions d'utilisation (FR / EN)</span>
+        <Copy text={data.urls.terms_fr} /><Copy text={data.urls.terms_en} />
+      </div>
+      <button className="btn primary" type="submit" style={{ alignSelf: "flex-start" }}>Enregistrer</button>
+    </form>
+  );
+}
+
+function TelegramCard() {
+  const run = useRun();
+  const toast = useToast();
+  const { data, error, reload } = useLoad(() => api.get("/admin/telegram"), []);
+  const [token, setToken] = useState("");
+  const [found, setFound] = useState(null);
+  const [busy, setBusy] = useState(false);
+  if (!data) return <Loading error={error} />;
+  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success };
+  const put = async (body, msg) => { const r = await run(() => api.put("/admin/telegram", { ...prefs, ...body }), msg); if (r) reload(); return r; };
+  const saveToken = async (e) => { e.preventDefault(); if (await put({ token: token.trim() }, "Bot enregistré")) setToken(""); };
+  const discover = async () => {
+    setBusy(true);
+    const r = await run(() => api.post("/admin/telegram/discover"));
+    setBusy(false);
+    if (r) { setFound(r.chats); if (!r.chats.length) toast("Aucune conversation : envoyez d'abord /start au bot dans Telegram", true); }
+  };
+  const isOn = (c) => data.chats.some((x) => x.id === c.id);
+  const toggleChat = (c) => put({ chats: isOn(c) ? data.chats.filter((x) => x.id !== c.id) : [...data.chats, c] }, isOn(c) ? "Destinataire retiré" : "Destinataire ajouté");
+  const test = async () => { const r = await run(() => api.post("/admin/telegram/test")); if (r) toast(`Message de test envoyé (${r.sent})`); };
+  const list = [...data.chats, ...(found || []).filter((c) => !isOn(c))];
+  return (
+    <div className="card stack" style={{ marginBottom: 20 }}>
+      <div className="row"><h2 className="grow">Alertes Telegram</h2>
+        {data.has_token && data.chats.length ? <Chip tone="ok">Actives</Chip> : <Chip tone="warn">À configurer</Chip>}</div>
+      <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>
+        <li>Dans Telegram, ouvrez <b>@BotFather</b>, envoyez <span className="mono">/newbot</span> et choisissez un nom : il vous donne un jeton.</li>
+        <li>Collez le jeton ci-dessous et enregistrez.</li>
+        <li>Ouvrez votre bot{data.bot ? <> (<a href={`https://t.me/${data.bot}`} target="_blank" rel="noreferrer">@{data.bot}</a>)</> : ""} et envoyez-lui <span className="mono">/start</span>, ou ajoutez-le à un groupe.</li>
+        <li>« Chercher les conversations », cochez les destinataires, puis « Envoyer un test ».</li>
+      </ol>
+      <form className="row" style={{ gap: 8, alignItems: "flex-end" }} onSubmit={saveToken}>
+        <Field label={`Jeton du bot${data.has_token ? ` · @${data.bot} enregistré, laissez vide pour le garder` : ""}`} className="grow">
+          <input id="tg-token" className="input mono" type="password" autoComplete="new-password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="123456:ABC…" />
+        </Field>
+        <button className="btn primary" type="submit" disabled={!token.trim()}>Enregistrer</button>
+        {data.has_token && <button type="button" className="btn" onClick={() => put({ token: "" }, "Bot retiré")}>Retirer</button>}
+      </form>
+      {data.has_token && <>
+        <div className="row" style={{ gap: 8 }}>
+          <button type="button" className="btn" disabled={busy} onClick={discover}><Icon name="search" size={14} />{busy ? "Recherche…" : "Chercher les conversations"}</button>
+          {data.chats.length > 0 && <button type="button" className="btn" onClick={test}><Icon name="share" size={14} />Envoyer un test</button>}
+        </div>
+        {list.length > 0 && (
+          <div className="stack" style={{ gap: 4 }}>
+            <span className="label">Destinataires</span>
+            {list.map((c) => <label key={c.id} className="check"><input type="checkbox" checked={isOn(c)} onChange={() => toggleChat(c)} /><span>{c.name} <span className="muted mono small">{c.id}</span></span></label>)}
+          </div>
+        )}
+        <div className="stack" style={{ gap: 4 }}>
+          <span className="label">Prévenir quand</span>
+          <label className="check"><input id="tg-failures" type="checkbox" checked={data.failures} onChange={(e) => put({ failures: e.target.checked }, "Préférence enregistrée")} /><span>un post échoue (après les nouveaux essais automatiques)</span></label>
+          <label className="check"><input type="checkbox" checked={data.accounts} onChange={(e) => put({ accounts: e.target.checked }, "Préférence enregistrée")} /><span>un compte doit être reconnecté (vérifié aussi chaque jour)</span></label>
+          <label className="check"><input type="checkbox" checked={data.success} onChange={(e) => put({ success: e.target.checked }, "Préférence enregistrée")} /><span>un post est publié</span></label>
+        </div>
+      </>}
+    </div>
+  );
+}
+
 function Users() {
   const run = useRun();
   const { me } = useApp();
@@ -192,9 +282,11 @@ export default function Admin() {
       <div className="accounts" style={{ marginBottom: 20 }}>
         {apps.data.apps.map((a) => <AppCard key={a.provider} app={a} onSaved={apps.reload} />)}
       </div>
+      <LegalCard />
       <h2 style={{ margin: "8px 0 4px" }}>Rédaction avec Claude</h2>
       <p className="muted" style={{ margin: "0 0 12px", maxWidth: "75ch" }}>Dans « Nouveau post », le bouton « Rédiger avec Claude » propose un texte commun et une version par réseau, à partir de votre consigne et de la présentation du projet. Rien n'est publié sans votre validation.</p>
       <ClaudeCard />
+      <TelegramCard />
       <Users />
     </>
   );

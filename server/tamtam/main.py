@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, ai, datadir, db, log, media, security, seed, worker
+from . import __version__, ai, datadir, db, legal, log, media, security, seed, worker
 from .api import router
 from .config import ConfigError, Settings, load_settings
 
@@ -188,6 +188,24 @@ def create_app(settings: Settings) -> FastAPI:
             return PlainTextResponse("lien inconnu", status_code=404)
         return Response(status_code=302, headers={"Location": row["target_url"], "Cache-Control": "no-store",
                                                   "Referrer-Policy": "no-referrer-when-downgrade"})
+
+    async def legal_page(request: Request):
+        """Pages légales publiques : confidentialite, conditions, privacy, terms (sans connexion)."""
+        page = request.url.path.strip("/")
+        values = {"operator": "", "contact": ""}
+        try:
+            async with request.app.state.pool.connection() as conn:
+                cur = await conn.execute("SELECT key, value FROM site_settings WHERE key IN ('legal_operator', "
+                                         "'legal_contact')")
+                for r in await cur.fetchall():
+                    values[r["key"].removeprefix("legal_")] = r["value"]
+        except Exception:
+            return PlainTextResponse("service momentanément indisponible", status_code=503)
+        return Response(legal.render(page, values["operator"], values["contact"]), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
+
+    for _page in legal.PAGES:
+        app.add_api_route(f"/{_page}", legal_page, methods=["GET"], include_in_schema=False)
 
     app.include_router(router)
 

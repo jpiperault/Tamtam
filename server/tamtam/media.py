@@ -48,8 +48,19 @@ def store(src: Path, data_dir: str) -> dict:
         ext = VIDEO_TYPES[vmime]
         dst = out_dir / f"{token}{ext}"
         shutil.copyfile(src, dst)
+        width = height = duration = None
+        try:
+            import av
+
+            with av.open(str(dst)) as c:
+                if c.streams.video:
+                    v = c.streams.video[0]
+                    width, height = v.codec_context.width or None, v.codec_context.height or None
+                duration = round(float(c.duration) / 1_000_000, 2) if c.duration else None
+        except Exception:  # noqa: BLE001 - une vidéo que PyAV ne lit pas reste acceptée (durée inconnue)
+            pass
         return {"token": token, "ext": ext, "mime": vmime, "kind": "video", "size": dst.stat().st_size,
-                "width": None, "height": None}
+                "width": width, "height": height, "duration_s": duration}
     try:
         with Image.open(src) as im:
             im = ImageOps.exif_transpose(im)
@@ -69,7 +80,7 @@ def store(src: Path, data_dir: str) -> dict:
     except (OSError, Image.DecompressionBombError, ValueError) as exc:
         raise MediaError("format non reconnu : envoyez une image (JPEG, PNG, WebP) ou une vidéo MP4 / MOV") from exc
     return {"token": token, "ext": ".jpg", "mime": "image/jpeg", "kind": "image", "size": dst.stat().st_size,
-            "width": w, "height": h}
+            "width": w, "height": h, "duration_s": None}
 
 
 def remove(data_dir: str, token: str, ext: str) -> None:

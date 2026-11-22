@@ -46,7 +46,7 @@ Si un bouton « Connecter » est grisé, l'application de ce réseau n'est pas e
 
 ### Rédiger avec Claude
 
-Le bouton **Rédiger avec Claude**, à droite des onglets de texte, demande une proposition à Claude (l'IA
+Le bouton **Rédiger avec Claude**, au-dessus du texte, demande une proposition à Claude (l'IA
 d'Anthropic) :
 
 1. Choisissez d'abord les comptes : Claude écrit une version pour chacun de leurs réseaux.
@@ -79,8 +79,26 @@ est cochée, les images (réduites à 1 568 px) ou les images extraites de la vi
 | X | 280 caractères (un lien compte pour 23) | facultatif : 4 images ou 1 vidéo | cliquable, suivi |
 | TikTok | 2 200 caractères | obligatoire : 1 vidéo, ou des photos (carrousel) | pas cliquable : mettez-le dans la bio |
 
-TikTok : tant que l'application Tamtam n'a pas passé l'audit de TikTok, les posts sont publiés en « Moi
-uniquement ». La visibilité voulue se règle sur la carte du compte TikTok (page Comptes).
+### Réglages TikTok (à chaque post)
+
+Quand un compte TikTok est choisi, un bloc **Réglages TikTok** apparaît sous « Quand ». TikTok impose de tout
+choisir à chaque post, sans valeur par défaut :
+
+- le compte TikTok qui publiera (nom affiché par TikTok) ;
+- **Qui peut voir** la vidéo ou les photos (liste vide au départ ; seules les options permises pour ce compte sont
+  proposées) ;
+- **Autoriser** : commentaires, et pour une vidéo duo et collage (décochés au départ ; grisés si le compte les a
+  désactivés dans TikTok) ;
+- **Divulgation du contenu** : à activer si le post fait la promotion de vous-même (**Votre marque** : étiquette
+  « Contenu promotionnel ») ou d'un tiers (**Contenu de marque** : étiquette « Partenariat rémunéré », impossible en
+  « Moi uniquement »).
+
+La phrase « En publiant, vous acceptez… » au-dessus des boutons renvoie aux règles de TikTok. Une vidéo plus longue
+que ce que le compte accepte est signalée avant l'envoi. Après la publication, TikTok peut mettre quelques minutes à
+afficher le post sur le profil.
+
+Tant que l'application Tamtam n'a pas passé l'audit de TikTok, les posts restent privés (« Moi uniquement ») et le
+compte TikTok doit lui-même être en mode privé au moment de publier.
 
 ## Calendrier
 
@@ -201,6 +219,24 @@ puis **Tester la clé**. La clé est chiffrée en base et ne réapparaît jamais
 - **Rédactions par jour** : limite commune à tous les utilisateurs, pour maîtriser la facture. La carte affiche
   l'usage du jour et du mois.
 - **Effacer la clé** désactive le bouton pour tout le monde.
+
+### Pages légales
+
+TikTok, Meta, LinkedIn et Google demandent l'adresse d'une **politique de confidentialité** et de **conditions
+d'utilisation** pour valider une application. Tamtam les fournit, en français et en anglais, sans connexion :
+`/confidentialite`, `/conditions`, `/privacy`, `/terms`. Dans Administration → **Pages légales**, saisissez le nom
+de l'éditeur (vous ou votre société) et une adresse de contact, puis copiez les adresses dans les portails
+développeurs.
+
+### Alertes Telegram
+
+Tamtam peut vous prévenir sur Telegram quand un post échoue (après ses nouveaux essais automatiques), quand un compte
+doit être reconnecté (vérifié aussi une fois par jour), et, si vous le voulez, quand un post est publié.
+
+1. Dans Telegram, ouvrez **@BotFather**, envoyez `/newbot`, choisissez un nom : il vous donne un jeton.
+2. Administration → **Alertes Telegram** : collez le jeton, **Enregistrer**.
+3. Ouvrez votre bot dans Telegram et envoyez-lui `/start` (ou ajoutez-le à un groupe d'équipe).
+4. **Chercher les conversations**, cochez les destinataires, puis **Envoyer un test**.
 
 ### Utilisateurs
 

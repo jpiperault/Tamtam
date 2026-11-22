@@ -33,6 +33,9 @@ def _check(r, network: str = "TikTok") -> dict:
         if isinstance(err, dict) and err.get("code") in ("access_token_invalid", "scope_not_authorized"):
             from .base import AuthExpired
             raise AuthExpired(f"TikTok : autorisation expirée ou insuffisante, reconnectez le compte ({err.get('message', '')}).")
+        if isinstance(err, dict) and str(err.get("code", "")).startswith(("spam_risk", "reached_active_user_cap")):
+            raise PublishError("TikTok n'accepte pas de nouvelle publication pour ce compte pour le moment : "
+                               f"réessayez plus tard ({err.get('code')}).")
         if isinstance(err, dict) and err.get("code") == "rate_limit_exceeded":
             raise PublishError("TikTok : trop de requêtes, nouvel essai plus tard.", retry=True)
         if isinstance(err, dict) and err.get("message"):
@@ -89,21 +92,42 @@ def _chunks(size: int) -> tuple[int, int]:
     return CHUNK, size // CHUNK  # le dernier morceau absorbe le reste (jusqu'à 128 Mo permis)
 
 
+def post_settings(opts: dict, info: dict, is_video: bool) -> dict:
+    """Réglages envoyés à TikTok, à partir des choix faits dans Tamtam pour ce post (jamais de valeur par défaut)."""
+    privacy = opts.get("privacy_level") or ""
+    if not privacy:
+        raise PublishError("TikTok : la visibilité n'a pas été choisie pour ce post. Modifiez le post, puis réessayez.")
+    if privacy not in (info.get("privacy_level_options") or []):
+        raise PublishError("TikTok : la visibilité choisie n'est plus proposée pour ce compte (compte passé en privé ou "
+                           "en public ?). Modifiez le post, puis réessayez.")
+    disclose = bool(opts.get("disclose"))
+    out = {"privacy_level": privacy,
+           "disable_comment": not opts.get("allow_comment") or bool(info.get("comment_disabled")),
+           "brand_organic_toggle": disclose and bool(opts.get("brand_organic")),
+           "brand_content_toggle": disclose and bool(opts.get("brand_content"))}
+    if out["brand_content_toggle"] and privacy == "SELF_ONLY":
+        raise PublishError("TikTok : un contenu de marque ne peut pas être privé.")
+    if is_video:
+        out["disable_duet"] = not opts.get("allow_duet") or bool(info.get("duet_disabled"))
+        out["disable_stitch"] = not opts.get("allow_stitch") or bool(info.get("stitch_disabled"))
+    return out
+
+
 async def publish(account: dict, content: Content) -> Result:
     token = account["access_token"]
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}
     info = await creator_info(token)
-    options = info.get("privacy_level_options") or ["SELF_ONLY"]
-    wanted = (account.get("meta") or {}).get("privacy") or "PUBLIC_TO_EVERYONE"
-    privacy = wanted if wanted in options else ("SELF_ONLY" if "SELF_ONLY" in options else options[0])
     videos = [m for m in content.media if m.kind == "video"]
     images = [m for m in content.media if m.kind == "image"]
+    settings = post_settings(content.options, info, bool(videos))
+    max_s = info.get("max_video_post_duration_sec")
+    if videos and max_s and videos[0].duration_s and videos[0].duration_s > max_s:
+        raise PublishError(f"TikTok : la vidéo dure {round(videos[0].duration_s)} s, ce compte accepte {max_s} s au plus.")
     async with client(300) as c:
         if videos:
             v = videos[0]
             chunk, count = _chunks(v.size)
-            body = {"post_info": {"title": content.text[:2200], "privacy_level": privacy, "disable_comment": False,
-                                  "disable_duet": False, "disable_stitch": False},
+            body = {"post_info": {"title": content.text[:2200], **settings},
                     "source_info": {"source": "FILE_UPLOAD", "video_size": v.size, "chunk_size": chunk,
                                     "total_chunk_count": count}}
             d = _check(await c.post(f"{API}/post/publish/video/init/", headers=headers, json=body))["data"]
@@ -120,8 +144,8 @@ async def publish(account: dict, content: Content) -> Result:
                     if r.status_code not in (200, 201, 206):
                         raise PublishError(f"TikTok : envoi de la vidéo refusé (HTTP {r.status_code}).", retry=True)
         elif images:
-            body = {"post_info": {"title": content.text[:90], "description": content.text[:4000],
-                                  "privacy_level": privacy, "disable_comment": False, "auto_add_music": True},
+            body = {"post_info": {"title": content.text[:90], "description": content.text[:4000], **settings,
+                                  "auto_add_music": True},
                     "source_info": {"source": "PULL_FROM_URL", "photo_cover_index": 0,
                                     "photo_images": [m.url for m in images]},
                     "post_mode": "DIRECT_POST", "media_type": "PHOTO"}

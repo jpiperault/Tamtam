@@ -71,6 +71,13 @@ la présentation du projet et, si l'utilisateur laisse la case cochée, les imag
 4 images extraites de la vidéo (bibliothèque PyAV, incluse dans l'image Docker) ; jamais les jetons ni les comptes. Chaque appel est noté dans la table
 `ai_calls` (utilisateur, projet, jetons) pour la limite quotidienne et le suivi du coût.
 
+### Pages légales et alertes
+
+- Pages publiques sans connexion : `/confidentialite`, `/conditions`, `/privacy`, `/terms` (à déclarer dans les
+  portails développeurs). Éditeur et contact se saisissent dans Administration → Pages légales.
+- Alertes Telegram (facultatives) : jeton du bot saisi dans Administration, chiffré avec `TOKEN_KEY`. Le conteneur
+  doit pouvoir joindre `https://api.telegram.org`. Une vérification des comptes connectés tourne une fois par jour.
+
 ## 4. Mettre à jour
 
 ```bash
@@ -88,7 +95,8 @@ Les migrations de base s'appliquent seules au démarrage (ajouts uniquement).
 - La publication tourne dans le même processus : toutes les 10 secondes, envoi des posts dont l'heure est venue
   (3 en parallèle au plus). Un redémarrage pendant un envoi marque ce réseau en échec (« vérifiez sur le réseau
   avant de réessayer ») plutôt que de risquer un doublon.
-- Routes publiques sans connexion : `/m/<fichier>` (médias, noms aléatoires impossibles à deviner), `/l/<code>`
+- Routes publiques sans connexion : pages légales (`/confidentialite`, `/conditions`, `/privacy`, `/terms`),
+  `/m/<fichier>` (médias, noms aléatoires impossibles à deviner), `/l/<code>`
   (liens suivis), `/api/v1/connect/<réseau>/callback` (retour OAuth, protégé par un état à usage unique de
   30 minutes).
 - Journaux sur la sortie standard, sans jeton ni secret.
