@@ -139,6 +139,7 @@ class TelegramIn(BaseModel):
     report: bool = True
     approval: bool = True
     inbox: bool = False
+    release: bool = True
 
 
 @router.put("/admin/telegram")

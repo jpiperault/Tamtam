@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
 import { useApp } from "../App.jsx";
-import { fmtDateTime } from "../rules.js";
-import { Icon, Loading, NETWORKS, Net, ORDER, Seg, useLoad, useRun } from "../ui.jsx";
+import { DAYS, fmtDateTime } from "../rules.js";
+import { Chip, Icon, Loading, NETWORKS, Net, ORDER, Seg, useLoad, useRun } from "../ui.jsx";
 
 const METRICS = [["views", "Vues"], ["likes", "J'aime"], ["comments", "Commentaires"], ["shares", "Partages"]];
 const fmt = (n) => (n == null ? "–" : Number(n).toLocaleString("fr-FR"));
@@ -110,6 +110,66 @@ function Reports({ projectId }) {
   );
 }
 
+const pct = (s) => (s == null ? "–" : `${s >= 1 ? "+" : ""}${Math.round((s - 1) * 100)} %`);
+
+function BestTimes({ projectId }) {
+  const { project, refreshProjects } = useApp();
+  const run = useRun();
+  const [platform, setPlatform] = useState("");
+  const { data, error, reload } = useLoad(() => api.get(`/insights/best-times?project_id=${projectId}&days=90&platform=${platform}`), [projectId, platform]);
+  if (!data) return <Loading error={error} />;
+  const add = async (s) => {
+    const slots = [...(project.slots || []), { day: s.day, time: s.time }];
+    if (await run(() => api.patch(`/projects/${projectId}`, { slots }), `Créneau ${DAYS[s.day].toLowerCase()} ${s.time} ajouté`)) { refreshProjects(); reload(); }
+  };
+  const maxDay = Math.max(1, ...data.by_day.map((d) => d.score || 0));
+  const hours = data.by_hour.filter((h) => h.posts > 0);
+  const maxHour = Math.max(1, ...hours.map((h) => h.score || 0));
+  return (
+    <div className="card stack" style={{ marginBottom: 16 }} id="best-times">
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <h2>Meilleurs moments pour publier</h2>
+        <select className="select" style={{ width: "auto" }} aria-label="Réseau" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+          <option value="">Tous les réseaux</option>
+          {ORDER.map((p) => <option key={p} value={p}>{NETWORKS[p].label}</option>)}
+        </select>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>D'après les {data.measured} post(s) mesuré(s) des 90 derniers jours. Chaque post est comparé à la moyenne de son réseau (vues et réactions) : « +40 % » veut dire 40 % de mieux que d'habitude.</p>
+      {!data.enough && <div className="notice warn small"><Icon name="alert" size={16} />Encore trop peu de chiffres pour conclure : il faut au moins {data.enough_at} posts mesurés{data.measured ? `, il y en a ${data.measured}` : ""}. Publiez à des moments variés pour comparer.</div>}
+      {data.best.length > 0 && (
+        <div className="table-wrap"><table>
+          <thead><tr><th>Moment</th><th style={{ textAlign: "right" }}>Résultat</th><th style={{ textAlign: "right" }}>Posts</th><th /></tr></thead>
+          <tbody>{data.best.map((s) => (
+            <tr key={`${s.day}-${s.hour}`}><td>{DAYS[s.day]} vers {s.time}</td>
+              <td className="mono" style={{ textAlign: "right" }}>{pct(s.score)}</td>
+              <td className="mono" style={{ textAlign: "right" }}>{s.posts}</td>
+              <td style={{ textAlign: "right" }}>{s.in_slots ? <Chip tone="ok">dans vos créneaux</Chip>
+                : <button type="button" className="btn small best-add" onClick={() => add(s)}><Icon name="plus" size={14} />Ajouter aux créneaux</button>}</td></tr>
+          ))}</tbody>
+        </table></div>
+      )}
+      {data.enough && data.best.length === 0 && <p className="muted small" style={{ margin: 0 }}>Aucun moment ne se détache : il faut au moins {data.min_posts} posts publiés au même jour et à la même heure pour les comparer.</p>}
+      {data.worst.length > 0 && <p className="small" style={{ margin: 0 }}>Moins bons : {data.worst.map((s) => `${DAYS[s.day].toLowerCase()} vers ${s.time} (${pct(s.score)})`).join(", ")}.</p>}
+      {data.measured > 0 && (
+        <div className="grid2">
+          <div><span className="label">Par jour</span>
+            {data.by_day.map((d) => (
+              <div key={d.day} className="hbar"><span>{DAYS[d.day]}</span>
+                <span className="track"><b style={{ width: `${((d.score || 0) / maxDay) * 100}%` }} /></span>
+                <span className="mono small" style={{ textAlign: "right" }}>{d.posts ? pct(d.score) : "–"}</span></div>
+            ))}</div>
+          <div><span className="label">Par heure de publication</span>
+            {hours.map((h) => (
+              <div key={h.hour} className="hbar"><span>{String(h.hour).padStart(2, "0")} h</span>
+                <span className="track"><b style={{ width: `${((h.score || 0) / maxHour) * 100}%` }} /></span>
+                <span className="mono small" style={{ textAlign: "right" }}>{pct(h.score)}</span></div>
+            ))}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Stats() {
   const { projectId, project } = useApp();
   const [days, setDays] = useState(30);
@@ -127,6 +187,7 @@ export default function Stats() {
       </div>
       <Reports projectId={projectId} />
       <NetworkStats projectId={projectId} days={days} />
+      <BestTimes projectId={projectId} />
       <div className="kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi"><b className="mono">{total}</b><span>clics sur vos liens</span></div>
         <div className="card kpi"><b className="mono">{data.counts.published}</b><span>publications réussies</span></div>

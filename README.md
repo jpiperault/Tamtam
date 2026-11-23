@@ -21,6 +21,8 @@ réseau ramène des visites.
   propose, un administrateur valide).
 - **Lien en bio** (page publique par projet, visites et clics par réseau) et **état des connexions** (diagnostic des
   permissions de chaque compte).
+- **Nouvelles versions** : à chaque release GitHub ou mise à jour sur l'App Store, Claude prépare un brouillon
+  d'annonce à partir des notes de version ; **meilleurs moments pour publier** calculés d'après vos chiffres.
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 

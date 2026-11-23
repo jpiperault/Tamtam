@@ -196,6 +196,7 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .hbar .track b { display: block; height: 100%; border-radius: 9px; }
 .hbar .instagram { background: var(--ig); } .hbar .facebook { background: var(--fb); } .hbar .x { background: var(--x); } .hbar .tiktok { background: var(--tt); }
 .hbar .threads { background: var(--th); } .hbar .bluesky { background: var(--bs); } .hbar .linkedin { background: var(--li); } .hbar .youtube { background: var(--yt); }
+.hbar .track b:not([class]) { background: var(--accent); }
 
 .guide { max-width: 80ch; line-height: 1.65; }
 .guide h1 { font-size: 24px; margin: 0 0 12px; } .guide h2 { margin: 22px 0 8px; } .guide h3 { margin: 16px 0 6px; }

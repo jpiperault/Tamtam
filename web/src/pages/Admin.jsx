@@ -170,7 +170,7 @@ function TelegramCard() {
   const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!data) return <Loading error={error} />;
-  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success, report: data.report, approval: data.approval, inbox: data.inbox };
+  const prefs = { failures: data.failures, accounts: data.accounts, success: data.success, report: data.report, approval: data.approval, inbox: data.inbox, release: data.release };
   const put = async (body, msg) => { const r = await run(() => api.put("/admin/telegram", { ...prefs, ...body }), msg); if (r) reload(); return r; };
   const saveToken = async (e) => { e.preventDefault(); if (await put({ token: token.trim() }, "Bot enregistré")) setToken(""); };
   const discover = async () => {
@@ -219,6 +219,7 @@ function TelegramCard() {
           <label className="check"><input type="checkbox" checked={data.report} onChange={(e) => put({ report: e.target.checked }, "Préférence enregistrée")} /><span>le rapport du lundi est prêt (si activé dans Statistiques des réseaux)</span></label>
           <label className="check"><input type="checkbox" checked={data.approval} onChange={(e) => put({ approval: e.target.checked }, "Préférence enregistrée")} /><span>un membre propose un post à valider (validation à deux)</span></label>
           <label className="check"><input type="checkbox" checked={data.inbox} onChange={(e) => put({ inbox: e.target.checked }, "Préférence enregistrée")} /><span>un nouveau commentaire arrive dans la boîte de réception</span></label>
+          <label className="check"><input type="checkbox" checked={data.release} onChange={(e) => put({ release: e.target.checked }, "Préférence enregistrée")} /><span>une nouvelle version d'appli a donné un brouillon d'annonce</span></label>
         </div>
       </>}
     </div>

@@ -78,3 +78,23 @@ async def delete_report(report_id: int, user=Depends(current_user), conn=Depends
         raise HTTPException(404, "rapport introuvable")
     await conn.commit()
     return {"ok": True}
+
+
+@router.get("/insights/best-times")
+async def best_times(project_id: int, request: Request, days: int = 90, platform: str = "", user=Depends(current_user),
+                     conn=Depends(get_conn)):
+    """Jours et heures où les posts du projet marchent le mieux, comparés à la moyenne de chaque réseau."""
+    from .. import besttimes
+
+    project = await project_or_404(conn, project_id)
+    days = max(14, min(days, 365))
+    rows = await fetchall(conn, f"""
+        SELECT t.platform, t.published_at, {', '.join('m.' + c for c in METRIC_FIELDS)}
+        FROM post_targets t JOIN posts p ON p.id=t.post_id JOIN post_metrics m ON m.post_target_id=t.id
+        WHERE p.project_id=%s AND t.status='published' AND t.published_at >= now() - make_interval(days => %s)
+          AND COALESCE(m.error, '') = '' AND (%s = '' OR t.platform = %s)""", (project_id, days, platform, platform))
+    out = besttimes.compute(rows, request.app.state.settings.timezone)
+    taken = {(s["day"], s["time"]) for s in project["slots"] or []}
+    for s in out["best"]:
+        s["in_slots"] = (s["day"], s["time"]) in taken
+    return {**out, "days": days, "platform": platform, "min_posts": besttimes.MIN_POSTS, "enough_at": besttimes.ENOUGH}

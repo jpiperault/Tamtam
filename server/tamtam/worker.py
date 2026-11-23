@@ -285,8 +285,12 @@ async def check_accounts(app) -> int:
 
 
 async def _stats_round(app) -> None:
-    from . import inbox, metrics, reports
+    from . import inbox, metrics, releases, reports
 
+    try:
+        await releases.check_due(app)
+    except Exception:  # noqa: BLE001 - la veille des versions ne doit jamais arrêter la publication
+        _log.exception("veille des nouvelles versions impossible")
     try:
         await inbox.collect(app)
     except Exception:  # noqa: BLE001 - ne doit jamais arrêter la publication

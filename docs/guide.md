@@ -212,6 +212,31 @@ d'origine), pour les retrouver dans les statistiques de votre site.
 Le cadre **Visites et clics** donne les visites par réseau d'origine, les clics par bouton et la part des visiteurs
 qui cliquent. Aucun cookie ni adresse IP : seulement des nombres par jour. Les visites de l'aperçu ne comptent pas.
 
+## Nouvelles versions
+
+Page **Nouvelles versions** : Tamtam surveille votre appli et, dès qu'une nouvelle version sort, Claude prépare un
+**brouillon d'annonce** à partir des notes de version. Le brouillon attend dans **Publications** : relisez-le,
+ajustez, puis programmez-le. Rien n'est publié tout seul.
+
+**Suivre une appli** :
+
+- **App Store** : collez l'adresse de la fiche (`https://apps.apple.com/fr/app/…/id123456789`) et le pays de la
+  boutique. Tamtam lit la version et le texte « Nouveautés ». Le brouillon reprend le lien de la fiche et sa première
+  capture d'écran (rangée dans la médiathèque).
+- **GitHub** : indiquez le dépôt (`proprietaire/depot`). Tamtam suit la dernière *release* publiée (pas les
+  préversions). Le lien du brouillon est l'adresse du projet. Pour un **dépôt privé**, ajoutez un jeton : sur GitHub,
+  Settings → Developer settings → Fine-grained tokens, accès à ce seul dépôt, permission « Contents : Read-only ».
+
+À l'ajout, la version actuelle sert de **point de départ** : seules les versions suivantes donnent un brouillon. Le
+bouton **Brouillon pour la …** en crée un tout de suite pour la version actuelle. **Vérifier maintenant** n'attend
+pas la vérification automatique (toutes les heures). Une **consigne pour Claude** (« tutoie », « termine par le code
+LANCEMENT ») s'ajoute à chaque brouillon de cette appli. Chaque brouillon compte pour une rédaction.
+
+Les brouillons partent sur **tous les comptes** du projet, avec un texte adapté à chacun. Si les notes de version
+sont vides ou trop techniques, Claude écrit un post court sans rien inventer et le signale.
+
+Google Play n'est pas pris en charge : Google n'offre pas de moyen public et fiable de lire la version d'une appli.
+
 ## Calendrier
 
 La semaine affiche les posts programmés, publiés et les brouillons datés (bord en pointillés). « + Programmer »
@@ -229,6 +254,18 @@ supposée est présentée comme une hypothèse. Chaque bilan compte pour une ré
 Si l'option est activée (Administration → Statistiques des réseaux), un bilan est rédigé **automatiquement chaque
 lundi matin** pour chaque projet qui a publié dans la semaine, et envoyé par Telegram si les alertes sont
 configurées.
+
+### Meilleurs moments pour publier
+
+Le cadre **Meilleurs moments pour publier** regarde les posts mesurés des 90 derniers jours. Chaque réseau a son
+échelle (1 000 vues sur X ne valent pas 1 000 vues sur TikTok) : chaque post est donc comparé à la **moyenne de son
+réseau**, en mêlant la portée (vues) et les réactions (J'aime, commentaires, partages, enregistrements). « +40 % »
+veut dire : 40 % de mieux que d'habitude.
+
+Tamtam classe ensuite les jours et heures de publication. Un moment n'est proposé que si au moins **2 posts** y ont
+été publiés, et le résultat n'est fiable qu'à partir de **8 posts mesurés**. **Ajouter aux créneaux** l'ajoute aux
+créneaux de publication du projet. Le menu permet de regarder un seul réseau. Pour comparer, publiez au début à des
+moments variés.
 
 ### Chiffres des réseaux
 
@@ -464,7 +501,8 @@ développeurs.
 
 Tamtam peut vous prévenir sur Telegram quand un post échoue (après ses nouveaux essais automatiques), quand un compte
 doit être reconnecté (vérifié aussi une fois par jour), quand le bilan du lundi est prêt (il est alors envoyé en
-entier), quand un membre propose un post à valider, et, si vous le voulez, quand un post est publié ou qu'un
+entier), quand un membre propose un post à valider, quand une nouvelle version d'appli a donné un brouillon d'annonce, et,
+si vous le voulez, quand un post est publié ou qu'un
 nouveau commentaire arrive.
 
 1. Dans Telegram, ouvrez **@BotFather**, envoyez `/newbot`, choisissez un nom : il vous donne un jeton.

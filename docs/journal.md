@@ -1,5 +1,23 @@
 # Journal
 
+## 1.9.0 — 23 novembre 2026
+
+- **Nouvelles versions** (nouvelle page) : Tamtam suit la fiche App Store ou le dépôt GitHub d'une appli (jeton
+  facultatif, chiffré, pour un dépôt privé) et vérifie toutes les heures. À chaque nouvelle version, Claude rédige un
+  brouillon d'annonce à partir des notes de version, sur tous les comptes du projet, avec le lien de la fiche (App
+  Store) ou du projet, et la première capture d'écran de la fiche. Rien n'est publié tout seul. Bouton pour créer
+  tout de suite le brouillon de la version actuelle. Alerte Telegram « nouvelle version » (option). Google Play non
+  pris en charge (pas d'interface publique fiable).
+- **Meilleurs moments pour publier** (Statistiques) : jours et heures où les posts marchent le mieux, chaque post
+  étant comparé à la moyenne de son réseau (vues et réactions), sur 90 jours, par réseau ou tous ensemble ; bouton
+  « Ajouter aux créneaux ».
+- Les brouillons créés automatiquement affichent d'où ils viennent et la remarque de Claude.
+
+Vérifié : tests d'API (lecture GitHub et App Store simulée, point de départ sans brouillon, brouillon à la version
+suivante, capture d'écran jointe, calcul des meilleurs moments) ; dans le navigateur, ajout d'une vraie fiche App
+Store et d'un vrai dépôt GitHub public, brouillon (texte simulé) ouvert dans l'éditeur. **Pas encore vérifié** :
+brouillon rédigé par le vrai Claude, dépôt privé avec jeton.
+
 ## 1.8.0 — 22 novembre 2026
 
 - **État des connexions** (administrateurs) : vérification en direct de l'adresse publique (HTTPS, joignable), des

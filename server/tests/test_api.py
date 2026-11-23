@@ -1192,3 +1192,150 @@ def test_bio_page(client, project):
     other = ok(client.post("/api/v1/projects", json={"name": "Autre appli"}), 201)
     ob = ok(client.get(f"/api/v1/projects/{other['id']}/bio"))
     assert client.put(f"/api/v1/projects/{other['id']}/bio", json={**ob, "slug": "appli-test"}).status_code == 409
+
+
+# --- 1.9 : nouvelles versions et meilleurs moments
+
+def test_release_units(monkeypatch):
+    import httpx
+
+    from tamtam import releases
+
+    n = releases.normalize
+    assert n("github", "https://github.com/jpiperault/Tamtam.git") == "jpiperault/Tamtam"
+    assert n("github", "a/b") == "a/b"
+    assert n("appstore", "https://apps.apple.com/fr/app/mon-appli/id123456789?l=en") == "123456789"
+    assert n("appstore", "id123456789") == "123456789" and n("appstore", "com.exemple.appli") == "com.exemple.appli"
+    for kind, bad in (("github", "pas un dépôt"), ("appstore", "https://exemple.fr")):
+        with pytest.raises(ValueError):
+            n(kind, bad)
+
+    def gh(req):
+        if "secret" in req.url.path:
+            assert req.headers["authorization"] == "Bearer tok"
+            return httpx.Response(401, json={})
+        if "vide" in req.url.path:
+            return httpx.Response(404, json={})
+        return httpx.Response(200, json={"tag_name": "v2.1.0", "name": "Mode sombre", "body": "- Mode sombre",
+                                         "html_url": "https://github.com/a/b/releases/tag/v2.1.0",
+                                         "published_at": "2026-11-20T10:00:00Z"})
+
+    _mock(monkeypatch, releases, gh)
+    rel = asyncio.run(releases.fetch_github("a/b"))
+    assert rel.version == "v2.1.0" and rel.notes == "- Mode sombre" and rel.published_at.day == 20
+    with pytest.raises(releases.ReleaseError, match="jeton"):
+        asyncio.run(releases.fetch_github("a/secret", "tok"))
+    with pytest.raises(releases.ReleaseError, match="sans release"):
+        asyncio.run(releases.fetch_github("a/vide"))
+    assert releases.campaign_for(rel) == "version-v2.1.0"
+
+    def apple(req):
+        assert req.url.params["country"] == "be"
+        if req.url.params.get("id") == "1":
+            return httpx.Response(200, json={"resultCount": 0, "results": []})
+        return httpx.Response(200, json={"results": [{"version": "3.0", "trackName": "Le Bon Plat",
+                                                      "releaseNotes": "Recettes de saison",
+                                                      "trackViewUrl": "https://apps.apple.com/be/app/x/id42?uo=4",
+                                                      "screenshotUrls": ["https://is1.example/s.png"]}]})
+
+    _mock(monkeypatch, releases, apple)
+    rel = asyncio.run(releases.fetch_appstore("com.exemple.appli", "be"))
+    assert (rel.version, rel.name, rel.url) == ("3.0", "Le Bon Plat", "https://apps.apple.com/be/app/x/id42")
+    with pytest.raises(releases.ReleaseError, match="introuvable"):
+        asyncio.run(releases.fetch_appstore("1", "be"))
+    text = releases.instructions({"kind": "appstore", "instructions": "tutoie"}, {"name": "P"}, rel)
+    assert "version 3.0 de Le Bon Plat" in text and "<notes_de_version>\nRecettes de saison" in text and "tutoie" in text
+
+
+def test_release_flow(client, project, accounts, monkeypatch):
+    import httpx
+
+    from tamtam import releases
+
+    state = {"version": "v1.0.0"}
+    shot = png_bytes()
+
+    def handler(req):
+        if req.url.host == "api.github.com":
+            return httpx.Response(200, json={"tag_name": state["version"], "name": "", "body": "Nouveau : export PDF",
+                                             "html_url": "https://github.com/a/b/releases/x"})
+        if req.url.host == "itunes.apple.com":
+            return httpx.Response(200, json={"results": [{"version": "5.2", "trackName": "Appli test",
+                                                          "releaseNotes": "Widgets", "screenshotUrls": ["https://is1.example/s.png"],
+                                                          "trackViewUrl": "https://apps.apple.com/fr/app/a/id987654"}]})
+        return httpx.Response(200, content=shot, headers={"content-type": "image/png"})
+
+    _mock(monkeypatch, releases, handler)
+    pid = project["id"]
+    assert client.post(f"/api/v1/projects/{pid}/releases", json={"kind": "github", "ref": "pas bon"}).status_code == 422
+    src = ok(client.post(f"/api/v1/projects/{pid}/releases", json={"kind": "github", "ref": "https://github.com/a/b",
+                                                                   "token": "ghp_x"}), 201)
+    assert src["last_version"] == "v1.0.0" and src["has_token"] and src["ref"] == "a/b" and "token_enc" not in src
+    assert client.post(f"/api/v1/projects/{pid}/releases", json={"kind": "github", "ref": "a/b"}).status_code == 409
+    # même version : rien
+    r = ok(client.post(f"/api/v1/releases/{src['id']}/check"))
+    assert r["post_id"] is None and not r["new"]
+    # nouvelle version : brouillon (Claude simulé), sur tous les comptes du projet, avec le lien du projet
+    state["version"] = "v1.1.0"
+    r = ok(client.post(f"/api/v1/releases/{src['id']}/check"))
+    assert r["new"] and r["post_id"] and r["source"]["last_version"] == "v1.1.0"
+    post = ok(client.get(f"/api/v1/posts/{r['post_id']}"))
+    assert post["status"] == "draft" and post["campaign"] == "version-v1.1.0"
+    assert post["link_url"] == "https://app.example.test" and "version v1.1.0" in post["auto_note"]
+    ok_accounts = [a for a in ok(client.get(f"/api/v1/projects/{pid}/accounts")) if a["status"] == "ok"]
+    assert sorted(t["social_account_id"] for t in post["targets"]) == sorted(a["id"] for a in ok_accounts)
+    # vérification automatique : pas due (vérifiée à l'instant)
+    assert client.portal.call(releases.check_due, client.app_ref) == 0
+    # App Store : brouillon tout de suite, avec la capture d'écran dans la médiathèque
+    app_src = ok(client.post(f"/api/v1/projects/{pid}/releases", json={"kind": "appstore", "ref": "id987654"}), 201)
+    assert app_src["label"] == "Appli test" and app_src["url"].endswith("/app/id987654")
+    d = ok(client.post(f"/api/v1/releases/{app_src['id']}/draft"))
+    post = ok(client.get(f"/api/v1/posts/{d['post_id']}"))
+    assert post["link_url"] == "https://apps.apple.com/fr/app/a/id987654" and len(post["media"]) == 1
+    # pause, consigne, suppression
+    s = ok(client.patch(f"/api/v1/releases/{src['id']}", json={"enabled": False, "instructions": "tutoie", "token": ""}))
+    assert not s["enabled"] and s["instructions"] == "tutoie" and not s["has_token"]
+    assert len(ok(client.get(f"/api/v1/projects/{pid}/releases"))) == 2
+    ok(client.delete(f"/api/v1/releases/{src['id']}"))
+    ok(client.delete(f"/api/v1/releases/{app_src['id']}"))
+    for i in (r["post_id"], d["post_id"]):
+        ok(client.delete(f"/api/v1/posts/{i}"))
+
+
+def test_best_times_unit():
+    from datetime import datetime, timedelta, timezone
+
+    from tamtam import besttimes
+
+    base = datetime(2026, 11, 2, 17, 30, tzinfo=timezone.utc)   # lundi 18:30 à Paris
+    rows = []
+    for week in range(4):
+        t = base + timedelta(weeks=week)
+        rows.append({"platform": "x", "published_at": t, "views": 300, "reach": None, "likes": 30, "comments": 3,
+                     "shares": None, "saves": None})
+        rows.append({"platform": "x", "published_at": t + timedelta(days=2, hours=-6), "views": 100, "reach": None,
+                     "likes": 10, "comments": 1, "shares": None, "saves": None})   # mercredi 12:30
+        rows.append({"platform": "tiktok", "published_at": t + timedelta(days=2, hours=-6), "views": 9000,
+                     "reach": None, "likes": 900, "comments": 0, "shares": 0, "saves": None})
+    rows.append({"platform": "x", "published_at": base, "views": None, "reach": None, "likes": None, "comments": None,
+                 "shares": None, "saves": None})   # rien de mesuré : ignoré
+    out = besttimes.compute(rows, "Europe/Paris")
+    assert out["measured"] == 12 and out["enough"]
+    best = out["best"][0]
+    assert (best["day"], best["time"], best["posts"]) == (0, "18:30", 4) and best["score"] == 1.5
+    assert out["worst"][0]["day"] == 2 and out["worst"][0]["time"] == "12:30"
+    assert out["by_day"][0]["posts"] == 4 and out["by_hour"][18]["score"] == 1.5
+    assert not besttimes.compute(rows[:3], "Europe/Paris")["enough"]
+
+
+def test_best_times_api(client, project, accounts):
+    ok(client.post("/api/v1/posts", json={"project_id": project["id"], "mode": "now", "body": "Moment",
+                                          "account_ids": [accounts["x"]["id"]]}), 201)
+    run_worker(client)
+    ok(client.post(f"/api/v1/insights/refresh?project_id={project['id']}"))
+    r = ok(client.get(f"/api/v1/insights/best-times?project_id={project['id']}"))
+    assert r["measured"] >= 1 and len(r["by_day"]) == 7 and len(r["by_hour"]) == 24 and r["enough_at"] == 8
+    x = ok(client.get(f"/api/v1/insights/best-times?project_id={project['id']}&platform=x"))
+    assert 1 <= x["measured"] <= r["measured"] and x["platform"] == "x"
+    r = ok(client.get(f"/api/v1/insights/best-times?project_id={project['id']}&platform=aucun"))
+    assert r["measured"] == 0 and r["best"] == []

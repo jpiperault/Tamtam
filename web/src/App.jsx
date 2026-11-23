@@ -6,6 +6,7 @@ import Composer from "./pages/Composer.jsx";
 import Campaign from "./pages/Campaign.jsx";
 import Inbox from "./pages/Inbox.jsx";
 import Bio from "./pages/Bio.jsx";
+import Releases from "./pages/Releases.jsx";
 import Health from "./pages/Health.jsx";
 import Posts from "./pages/Posts.jsx";
 import Calendar from "./pages/Calendar.jsx";
@@ -55,6 +56,7 @@ const NAV = [
   { href: "#/boite", key: "boite", label: "Boîte de réception", icon: "chat" },
   { href: "#/calendrier", key: "calendrier", label: "Calendrier", icon: "calendar" },
   { href: "#/bio", key: "bio", label: "Lien en bio", icon: "link" },
+  { href: "#/versions", key: "versions", label: "Nouvelles versions", icon: "download" },
   { href: "#/comptes", key: "comptes", label: "Comptes", icon: "user" },
   { href: "#/stats", key: "stats", label: "Statistiques", icon: "chart" },
   { href: "#/projets", key: "projets", label: "Projets", icon: "folder" },
@@ -135,6 +137,8 @@ function Router({ route }) {
       return <Inbox />;
     case "bio":
       return <Bio />;
+    case "versions":
+      return <Releases />;
     case "etat":
       return <Health />;
     case "calendrier":

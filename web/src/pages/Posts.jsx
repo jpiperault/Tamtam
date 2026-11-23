@@ -57,6 +57,7 @@ export function PostRow({ post, onChange }) {
           {post.targets.length === 0 && <span className="small muted">Aucun compte choisi</span>}
         </div>
         {post.status === "review" && <div className="small muted">Proposé par {post.author || "un membre"}, en attente de validation par un administrateur.</div>}
+        {post.status === "draft" && post.auto_note && <div className="notice info small"><Icon name="sparkle" size={16} />{post.auto_note}</div>}
         {post.status === "draft" && post.review_note && <div className="notice warn small"><Icon name="alert" size={16} />Refusé : {post.review_note}</div>}
         {rejecting !== null && (
           <div className="stack" style={{ gap: 6 }}>
