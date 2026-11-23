@@ -1,6 +1,7 @@
 """Règles communes aux réseaux : limites de texte et de médias, contenu à publier, erreurs lisibles."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +34,15 @@ RULES = {
                 "link_in_text": True},
 }
 X_URL_LENGTH = 23  # X compte toute adresse comme 23 caractères
+
+
+def scope_list(raw) -> list[str]:
+    """Permissions renvoyées par un réseau (« a b » ou « a,b ») → liste triée."""
+    if not raw:
+        return []
+    if isinstance(raw, (list, tuple)):
+        return sorted({str(x) for x in raw})
+    return sorted({x for x in re.split(r"[\s,]+", str(raw)) if x})
 
 
 class PublishError(Exception):

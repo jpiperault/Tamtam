@@ -13,7 +13,7 @@ import asyncio
 import re
 from urllib.parse import quote, urlencode
 
-from .base import AuthExpired, Content, PublishError, Result, api_error, client
+from .base import AuthExpired, Content, PublishError, Result, api_error, client, scope_list
 
 AUTH = "https://www.linkedin.com/oauth/v2"
 API = "https://api.linkedin.com"
@@ -70,10 +70,10 @@ async def exchange(client_id: str, secret: str, redirect_uri: str, code: str) ->
         if r.status_code != 200:
             raise api_error(r, "LinkedIn")
         me = r.json()
-        common = {"access_token": token, "refresh_token": tok.get("refresh_token"),
+        common = {"access_token": token, "scope": tok.get("scope"), "refresh_token": tok.get("refresh_token"),
                   "expires_in": tok.get("expires_in"), "refresh_expires_in": tok.get("refresh_token_expires_in")}
         out = [{"platform": "linkedin", "external_id": f"person:{me['sub']}", "name": me.get("name", ""),
-                "handle": "", "avatar_url": me.get("picture", ""), "meta": {"author": f"urn:li:person:{me['sub']}",
+                "handle": "", "avatar_url": me.get("picture", ""), "meta": {"author": f"urn:li:person:{me['sub']}", "scopes": scope_list(tok.get("scope")),
                                                                            "kind": "profil"}, **common}]
         if "r_organization_admin" in (tok.get("scope") or ""):
             out += await _pages(c, token, common)
@@ -97,7 +97,8 @@ async def _pages(c, token: str, common: dict) -> list[dict]:
         if o.status_code == 200:
             name, vanity = o.json().get("localizedName") or name, o.json().get("vanityName", "")
         out.append({"platform": "linkedin", "external_id": f"organization:{oid}", "name": name, "handle": vanity,
-                    "avatar_url": "", "meta": {"author": urn, "kind": "page", "page_name": name}, **common})
+                    "avatar_url": "", "meta": {"author": urn, "kind": "page", "page_name": name,
+                                               "scopes": scope_list(common.get("scope"))}, **common})
     return out
 
 

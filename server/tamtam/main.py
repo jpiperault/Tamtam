@@ -207,6 +207,62 @@ def create_app(settings: Settings) -> FastAPI:
     for _page in legal.PAGES:
         app.add_api_route(f"/{_page}", legal_page, methods=["GET"], include_in_schema=False)
 
+    @app.get("/b/{slug}", include_in_schema=False)
+    async def bio_page(slug: str, request: Request):
+        """Page « lien en bio » publique d'un projet. Compte une visite par jour et par source (?src=…)."""
+        from . import bio
+
+        if not bio.SLUG_RE.match(slug):
+            return PlainTextResponse("page introuvable", status_code=404)
+        src = bio.source(request.query_params.get("src"))
+        try:
+            async with request.app.state.pool.connection() as conn:
+                cur = await conn.execute("SELECT b.*, p.name, p.color, m.token, m.ext FROM bio_pages b "
+                                         "JOIN projects p ON p.id=b.project_id LEFT JOIN media m ON m.id=b.avatar_media_id "
+                                         "WHERE b.slug=%s AND b.enabled AND NOT p.archived", (slug,))
+                page = await cur.fetchone()
+                if not page:
+                    return PlainTextResponse("page introuvable", status_code=404)
+                latest = await bio.latest_post(conn, page["project_id"], settings.public_url) if page["show_latest"] else None
+                preview = request.query_params.get("preview") == "1"   # aperçu dans Tamtam : pas compté
+                if not preview and "prefetch" not in (request.headers.get("purpose", "") +
+                                                      request.headers.get("sec-purpose", "")):
+                    await conn.execute("INSERT INTO bio_views(project_id, source, day, views) VALUES (%s,%s,current_date,1) "
+                                       "ON CONFLICT (project_id, source, day) DO UPDATE SET views=bio_views.views+1",
+                                       (page["project_id"], src))
+                await conn.commit()
+        except Exception:
+            return PlainTextResponse("service momentanément indisponible", status_code=503)
+        avatar = f"{settings.public_url}/m/{page['token']}{page['ext']}" if page["token"] else ""
+        return Response(bio.render(page, {"name": page["name"], "color": page["color"]}, latest, src, avatar),
+                        media_type="text/html", headers={
+                            "Cache-Control": "no-cache", "X-Frame-Options": "SAMEORIGIN",
+                            "Referrer-Policy": "strict-origin-when-cross-origin",
+                            "Content-Security-Policy": CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")})
+
+    @app.get("/b/{slug}/go/{link_id}", include_in_schema=False)
+    async def bio_go(slug: str, link_id: str, request: Request):
+        """Clic sur un bouton de la page : compté, puis redirection vers l'adresse avec ses paramètres UTM."""
+        from . import bio
+
+        if not bio.SLUG_RE.match(slug) or len(link_id) > 16:
+            return PlainTextResponse("lien inconnu", status_code=404)
+        src = bio.source(request.query_params.get("src"))
+        try:
+            async with request.app.state.pool.connection() as conn:
+                cur = await conn.execute("SELECT project_id, links FROM bio_pages WHERE slug=%s AND enabled", (slug,))
+                page = await cur.fetchone()
+                ln = next((x for x in (page or {}).get("links", []) if x.get("id") == link_id), None)
+                if not ln:
+                    return PlainTextResponse("lien inconnu", status_code=404)
+                await conn.execute("INSERT INTO bio_clicks(project_id, link_id, source, day, clicks) "
+                                   "VALUES (%s,%s,%s,current_date,1) ON CONFLICT (project_id, link_id, source, day) "
+                                   "DO UPDATE SET clicks=bio_clicks.clicks+1", (page["project_id"], link_id, src))
+                await conn.commit()
+        except Exception:
+            return PlainTextResponse("service momentanément indisponible", status_code=503)
+        return Response(status_code=302, headers={"Location": bio.target(ln["url"], src), "Cache-Control": "no-store"})
+
     app.include_router(router)
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE"], include_in_schema=False)

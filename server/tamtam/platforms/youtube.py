@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from urllib.parse import urlencode
 
-from .base import AuthExpired, Content, PublishError, Result, api_error, client
+from .base import AuthExpired, Content, PublishError, Result, api_error, client, scope_list
 
 AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN = "https://oauth2.googleapis.com/token"
@@ -56,7 +56,7 @@ async def exchange(client_id: str, secret: str, redirect_uri: str, code: str) ->
         out.append({"platform": "youtube", "external_id": ch["id"], "name": sn.get("title", ""),
                     "handle": (sn.get("customUrl") or "").lstrip("@"), "avatar_url": thumb,
                     "access_token": tok["access_token"], "refresh_token": tok.get("refresh_token"),
-                    "expires_in": tok.get("expires_in"), "meta": {}})
+                    "expires_in": tok.get("expires_in"), "meta": {"scopes": scope_list(tok.get("scope"))}})
     if not out:
         raise PublishError("YouTube : ce compte Google n'a pas de chaîne YouTube. Créez-la sur youtube.com.")
     return out
@@ -191,3 +191,11 @@ async def reply(account: dict, extra: dict, comment_id: str, text: str) -> str:
     if r.status_code != 200:
         raise api_error(r, "YouTube")
     return r.json().get("id", "")
+
+
+async def granted_scopes(account: dict) -> list[str]:
+    async with client(20) as c:
+        r = await c.get("https://oauth2.googleapis.com/tokeninfo", params={"access_token": account["access_token"]})
+    if r.status_code != 200:
+        raise api_error(r, "YouTube")
+    return scope_list(r.json().get("scope"))

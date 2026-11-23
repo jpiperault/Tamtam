@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from .base import Content, PublishError, Result, api_error, client
+from .base import Content, PublishError, Result, api_error, client, scope_list
 
 API = "https://api.x.com/2"
 SCOPES = ["tweet.read", "tweet.write", "users.read", "media.write", "offline.access"]
@@ -48,7 +48,8 @@ async def exchange(client_id: str, secret: str | None, redirect_uri: str, code: 
     u = r.json()["data"]
     return [{"platform": "x", "external_id": u["id"], "name": u.get("name", ""), "handle": u.get("username", ""),
              "avatar_url": u.get("profile_image_url", ""), "access_token": tok["access_token"],
-             "refresh_token": tok.get("refresh_token"), "expires_in": tok.get("expires_in"), "meta": {}}]
+             "refresh_token": tok.get("refresh_token"), "expires_in": tok.get("expires_in"),
+             "meta": {"scopes": scope_list(tok.get("scope"))}}]
 
 
 async def refresh(client_id: str, secret: str | None, refresh_token: str) -> dict:

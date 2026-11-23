@@ -5,6 +5,8 @@ import Login from "./pages/Login.jsx";
 import Composer from "./pages/Composer.jsx";
 import Campaign from "./pages/Campaign.jsx";
 import Inbox from "./pages/Inbox.jsx";
+import Bio from "./pages/Bio.jsx";
+import Health from "./pages/Health.jsx";
 import Posts from "./pages/Posts.jsx";
 import Calendar from "./pages/Calendar.jsx";
 import Accounts from "./pages/Accounts.jsx";
@@ -52,6 +54,7 @@ const NAV = [
   { href: "#/", key: "", label: "Publications", icon: "list" },
   { href: "#/boite", key: "boite", label: "Boîte de réception", icon: "chat" },
   { href: "#/calendrier", key: "calendrier", label: "Calendrier", icon: "calendar" },
+  { href: "#/bio", key: "bio", label: "Lien en bio", icon: "link" },
   { href: "#/comptes", key: "comptes", label: "Comptes", icon: "user" },
   { href: "#/stats", key: "stats", label: "Statistiques", icon: "chart" },
   { href: "#/projets", key: "projets", label: "Projets", icon: "folder" },
@@ -99,6 +102,9 @@ function Shell({ section, children }) {
         ))}
         <div className="nav-foot">
           {me.is_admin && (
+            <a href="#/etat" className={`nav-link${section === "etat" ? " active" : ""}`}><Icon name="check" />État des connexions</a>
+          )}
+          {me.is_admin && (
             <a href="#/admin" className={`nav-link${section === "admin" ? " active" : ""}`}><Icon name="settings" />Administration</a>
           )}
           <a href="#/aide" className={`nav-link${section === "aide" ? " active" : ""}`}><Icon name="file" />Aide</a>
@@ -127,6 +133,10 @@ function Router({ route }) {
       return <Campaign />;
     case "boite":
       return <Inbox />;
+    case "bio":
+      return <Bio />;
+    case "etat":
+      return <Health />;
     case "calendrier":
       return <Calendar />;
     case "comptes":
@@ -187,11 +197,11 @@ function Authed({ me, setMe }) {
   if (projects === null || rules === null) return <div className="empty">Chargement…</div>;
   const project = projects.find((p) => p.id === projectId) || null;
   const ctx = { me, setMe, projects, project, projectId, setProjectId, refreshProjects, rules, simulation, problems, toReview, inboxNew };
-  const needsProject = !project && !["projets", "admin", "profil", "aide"].includes(route.section);
+  const needsProject = !project && !["projets", "admin", "profil", "aide", "etat"].includes(route.section);
   return (
     <AppCtx.Provider value={ctx}>
       <Shell section={route.section}>
-        {route.section === "admin" && !me.is_admin ? <div className="notice danger">Page réservée aux administrateurs.</div>
+        {(route.section === "admin" || route.section === "etat") && !me.is_admin ? <div className="notice danger">Page réservée aux administrateurs.</div>
           : needsProject ? (
             <div className="card stack" style={{ maxWidth: 560 }}>
               <h1>Bienvenue sur Tamtam</h1>

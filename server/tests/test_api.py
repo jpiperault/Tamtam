@@ -1127,3 +1127,68 @@ def test_inbox_platform_units(monkeypatch):
         raise AssertionError("aurait dû échouer")
     except x.PublishError as exc:
         assert "mentionnée" in str(exc)
+
+
+# --- 1.8 : état des connexions et lien en bio
+
+def test_diagnostics(client, project, accounts):
+    d = ok(client.post("/api/v1/admin/diagnostics"))
+    assert d["public"]["https"] and d["simulation"]
+    demo = [a for a in d["accounts"] if a["simulated"]]
+    assert demo and all(a["ok"] for a in demo)
+    assert {a["provider"] for a in d["apps"]} >= {"meta", "x", "tiktok", "threads", "linkedin", "google"}
+    login(client, *MEMBER)
+    assert client.post("/api/v1/admin/diagnostics").status_code == 403
+    login(client, *ADMIN)
+
+
+def test_diagnostics_units():
+    from tamtam import diagnostics as dg
+
+    wanted = dg.expected("facebook", {"inbox_meta": "1"})
+    assert "pages_manage_engagement" in wanted and "read_insights" not in wanted
+    assert dg.missing("facebook", ["pages_manage_posts", "pages_read_engagement"], wanted) == \
+        ["pages_read_user_content", "pages_manage_engagement"]
+    assert dg.missing("x", None, dg.expected("x", {})) == []                       # permissions inconnues
+    assert dg.expected("linkedin", {}, "page") == ["w_organization_social"]
+    yt = dg.expected("youtube", {"inbox_google": "1"})
+    assert dg.missing("youtube", [dg.YT + "youtube.force-ssl"], yt) == []
+    from tamtam.platforms.base import scope_list
+    assert scope_list("tweet.read tweet.write") == ["tweet.read", "tweet.write"]
+    assert scope_list("user.info.basic,video.publish") == ["user.info.basic", "video.publish"]
+
+
+def test_bio_page(client, project):
+    pid = project["id"]
+    b = ok(client.get(f"/api/v1/projects/{pid}/bio"))
+    assert not b["enabled"] and b["slug"] == "appli-test" and b["links"][0]["url"] == "https://app.example.test"
+    assert client.get("/b/appli-test").status_code == 404                       # pas encore activée
+    r = client.put(f"/api/v1/projects/{pid}/bio", json={**b, "enabled": True, "links": []})
+    assert r.status_code == 422
+    assert client.put(f"/api/v1/projects/{pid}/bio", json={**b, "slug": "api"}).status_code == 422
+    assert client.put(f"/api/v1/projects/{pid}/bio", json={**b, "links": [{"label": "x", "url": "ftp://a"}]}).status_code == 422
+    b = ok(client.put(f"/api/v1/projects/{pid}/bio", json={
+        **b, "enabled": True, "title": "<script>alert(1)</script>", "subtitle": "L'appli qui aide",
+        "links": [{"label": "App Store", "url": "https://apps.apple.com/app/id1"},
+                  {"label": "Site", "url": "https://app.example.test/?ref=bio"}]}))
+    assert b["per_network"]["instagram"].endswith("/b/appli-test?src=instagram")
+    page = client.get("/b/appli-test?src=instagram")
+    assert page.status_code == 200 and "<script>alert" not in page.text and "&lt;script&gt;" in page.text
+    assert "App Store" in page.text and f"/b/appli-test/go/{b['links'][0]['id']}?src=instagram" in page.text
+    client.get("/b/appli-test")
+    client.get("/b/appli-test?src=nimportequoi")
+    prev = client.get("/b/appli-test?preview=1")                 # aperçu dans Tamtam : non compté
+    assert "frame-ancestors 'self'" in prev.headers["content-security-policy"]
+    r = client.get(f"/b/appli-test/go/{b['links'][1]['id']}?src=instagram", follow_redirects=False)
+    assert r.status_code == 302
+    q = parse_qs(urlsplit(r.headers["location"]).query)
+    assert q["utm_source"] == ["instagram"] and q["utm_medium"] == ["social"] and q["ref"] == ["bio"]
+    assert client.get("/b/appli-test/go/inconnu", follow_redirects=False).status_code == 404
+    st = ok(client.get(f"/api/v1/projects/{pid}/bio/stats"))
+    views = {v["source"]: v["n"] for v in st["views"]}
+    assert views == {"instagram": 1, "direct": 2}
+    assert st["clicks"] == [{"link_id": b["links"][1]["id"], "n": 1}]
+    # adresse déjà prise par un autre projet
+    other = ok(client.post("/api/v1/projects", json={"name": "Autre appli"}), 201)
+    ob = ok(client.get(f"/api/v1/projects/{other['id']}/bio"))
+    assert client.put(f"/api/v1/projects/{other['id']}/bio", json={**ob, "slug": "appli-test"}).status_code == 409

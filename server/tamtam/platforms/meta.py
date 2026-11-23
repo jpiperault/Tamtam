@@ -298,3 +298,14 @@ async def instagram_reply(account: dict, comment_id: str, text: str, version: st
         d = await _post(c, f"{_graph(version)}/{comment_id}/replies",
                         {"message": text, "access_token": account["access_token"]}, "Instagram")
     return d.get("id", "")
+
+
+async def granted_scopes(account: dict, app_id: str, secret: str, version: str) -> list[str]:
+    """Permissions réellement accordées au jeton (debug_token, avec le jeton de l'application)."""
+    async with client(20) as c:
+        d = await _get(c, f"{_graph(version)}/debug_token", {"input_token": account["access_token"],
+                                                             "access_token": f"{app_id}|{secret}"}, "Meta")
+    data = d.get("data") or {}
+    if not data.get("is_valid", True):
+        raise AuthExpired("Meta : jeton invalide, reconnectez le compte.")
+    return sorted(data.get("scopes") or [])

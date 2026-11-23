@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from urllib.parse import urlencode
 
-from .base import Content, PublishError, Result, api_error, client
+from .base import Content, PublishError, Result, api_error, client, scope_list
 
 API = "https://open.tiktokapis.com/v2"
 SCOPES = ["user.info.basic", "video.publish", "video.upload"]
@@ -68,7 +68,7 @@ async def exchange(client_key: str, secret: str, redirect_uri: str, code: str) -
              "name": u.get("display_name", ""), "handle": u.get("display_name", ""),
              "avatar_url": u.get("avatar_url", ""), "access_token": tok["access_token"],
              "refresh_token": tok.get("refresh_token"), "expires_in": tok.get("expires_in"),
-             "refresh_expires_in": tok.get("refresh_expires_in"), "meta": {}}]
+             "refresh_expires_in": tok.get("refresh_expires_in"), "meta": {"scopes": scope_list(tok.get("scope"))}}]
 
 
 async def refresh(client_key: str, secret: str, refresh_token: str) -> dict:

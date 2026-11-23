@@ -36,7 +36,8 @@ applications, sites et produits. Cette page explique quelles données il traite 
 - **Commentaires reçus** sous les posts publiés par {app} (boîte de réception) : texte du commentaire, nom, pseudo et
   photo de son auteur tels que le réseau les fournit, et la réponse envoyée depuis {app}. Ils sont gardés pour
   permettre d'y répondre et supprimés avec le post ou le compte.
-- **Clics sur les liens courts** : uniquement un nombre de clics par jour. Ni adresse IP, ni cookie, ni profil des
+- **Clics sur les liens courts et la page « lien en bio »** : uniquement un nombre de visites et de clics par jour
+  et par réseau d'origine. Ni adresse IP, ni cookie, ni profil des
   personnes qui cliquent ne sont conservés.
 
 ## Utilisation
@@ -124,7 +125,7 @@ page explains which data it processes and why.
 - **Comments received** under posts published by {app} (inbox): comment text, author name, username and picture as
   provided by the network, and the reply sent from {app}. They are kept to allow replying and deleted with the post
   or the account.
-- **Short link clicks**: only a daily click count. No IP address, cookie or profile of the people who click is kept.
+- **Short link and "link in bio" page clicks**: only daily visit and click counts per source network. No IP address, cookie or profile of the people who click is kept.
 
 ## How we use it
 

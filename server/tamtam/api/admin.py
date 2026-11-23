@@ -277,3 +277,14 @@ async def save_inbox_settings(body: InboxIn, admin=Depends(admin_user), conn=Dep
         await _set(conn, f"inbox_{k}", "1" if getattr(body, k) else "0")
     await conn.commit()
     return await get_inbox_settings(admin, conn)
+
+
+# --- État des connexions
+
+@router.post("/admin/diagnostics")
+async def diagnostics(request: Request, admin=Depends(admin_user), conn=Depends(get_conn)):
+    """Vérifie en direct l'adresse publique, les applications et chaque compte (quelques secondes)."""
+    from .. import diagnostics as diag
+
+    await conn.commit()
+    return await diag.run(request.app)

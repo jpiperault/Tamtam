@@ -193,6 +193,25 @@ Option dans **Administration → Utilisateurs** : les posts des **membres** atte
 - Le membre corrige le brouillon et le renvoie. Un post déjà validé qu'un membre modifie repasse en validation.
 - Les posts des administrateurs partent directement. Les campagnes d'un membre passent aussi en validation.
 
+## Lien en bio
+
+Instagram, TikTok, Threads… n'ont qu'un seul lien cliquable : celui de la bio. Page **Lien en bio** : Tamtam
+héberge pour chaque projet une page publique (par exemple `https://tamtam.piperault.fr/b/mon-appli`) avec :
+
+- une image (choisie dans la médiathèque) ou l'initiale du projet sur sa couleur, un titre, une accroche ;
+- vos **boutons** : App Store, Google Play, site, offre… (20 au plus, dans l'ordre choisi) ;
+- en option, le **dernier post publié** (texte, image et liens vers les réseaux où il est paru).
+
+Réglez la page, **Enregistrer**, puis **Mettre en ligne**. L'aperçu à droite montre la page telle qu'elle apparaît.
+
+**Une adresse par réseau** : copiez l'adresse proposée pour chaque réseau (elle se termine par `?src=instagram`,
+`?src=tiktok`…) et collez-la dans le champ « Site web » ou « Lien » du profil. Tamtam sait ainsi d'où viennent les
+visites. Les clics sur les boutons sont comptés puis redirigés avec les paramètres UTM (`utm_source` = le réseau
+d'origine), pour les retrouver dans les statistiques de votre site.
+
+Le cadre **Visites et clics** donne les visites par réseau d'origine, les clics par bouton et la part des visiteurs
+qui cliquent. Aucun cookie ni adresse IP : seulement des nombres par jour. Les visites de l'aperçu ne comptent pas.
+
 ## Calendrier
 
 La semaine affiche les posts programmés, publiés et les brouillons datés (bord en pointillés). « + Programmer »
@@ -261,6 +280,21 @@ cherchez `utm_source=facebook` dans les statistiques de votre site.
 - **À reconnecter** : le réseau a retiré l'autorisation (mot de passe changé, droits retirés, délai dépassé).
   Cliquez « Connecter » à nouveau : le compte est mis à jour sans perdre son historique.
 - **Retirer** efface le compte et ses jetons de Tamtam. Les posts déjà parus restent en ligne.
+
+## État des connexions (administrateurs)
+
+Avant de publier en vrai, ouvrez **État des connexions** (menu du bas). Tamtam vérifie en direct :
+
+- l'**adresse publique** : en `https://` (obligatoire pour Meta, TikTok et Threads, qui viennent y chercher les
+  médias) et joignable ;
+- les **applications des réseaux** : identifiants saisis ou non ;
+- **chaque compte** : autorisation encore acceptée par le réseau, date d'expiration, et **permissions accordées**
+  comparées à celles dont Tamtam a besoin avec vos options (statistiques, boîte de réception, Pages LinkedIn). Les
+  permissions manquantes sont listées : ajoutez-les à l'application du réseau puis reconnectez le compte.
+
+Les permissions sont lues en direct pour Facebook, Instagram et YouTube ; pour X, TikTok et LinkedIn, ce sont
+celles données à la connexion (reconnectez un compte connecté avant la version 1.8 pour les voir). « Vérifier à
+nouveau » relance tout.
 
 ## Administration (administrateurs)
 

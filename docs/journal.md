@@ -1,5 +1,19 @@
 # Journal
 
+## 1.8.0 — 22 novembre 2026
+
+- **État des connexions** (administrateurs) : vérification en direct de l'adresse publique (HTTPS, joignable), des
+  applications des réseaux et de chaque compte (autorisation, expiration, permissions accordées comparées à celles
+  qu'exigent les options choisies, avec la liste des manquantes).
+- **Lien en bio** : page publique par projet (`/b/<adresse>`), boutons, image, accroche, dernier post publié ;
+  une adresse par réseau (`?src=instagram`…) pour savoir d'où viennent les visites ; clics comptés et redirigés avec
+  UTM ; statistiques visites / clics ; aperçu dans Tamtam.
+- Les permissions accordées sont désormais gardées à la connexion (X, TikTok, LinkedIn, YouTube).
+
+Vérifié : tests d'API (diagnostic, page publique, échappement, comptage par source, redirection UTM, adresse
+déjà prise), écrans dans le navigateur et page publique sur mobile en mode simulation. **Pas encore vérifié** :
+lecture réelle des permissions chez Meta et Google.
+
 ## 1.7.0 — 22 novembre 2026
 
 - **Boîte de réception** (nouvelle page) : commentaires reçus sous les posts publiés sur Facebook, Instagram,

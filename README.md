@@ -19,6 +19,8 @@ réseau ramène des visites.
   par Claude.
 - **Boîte de réception** des commentaires avec réponses proposées par Claude, **validation à deux** (un membre
   propose, un administrateur valide).
+- **Lien en bio** (page publique par projet, visites et clics par réseau) et **état des connexions** (diagnostic des
+  permissions de chaque compte).
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 
