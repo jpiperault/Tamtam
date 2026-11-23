@@ -91,6 +91,9 @@ function Chooser({ id, onDone }) {
   );
 }
 
+const LANGS = [["", "Langue du post"], ["fr", "Français"], ["en", "Anglais"], ["es", "Espagnol"], ["de", "Allemand"],
+  ["it", "Italien"], ["pt", "Portugais"], ["nl", "Néerlandais"], ["pl", "Polonais"], ["ja", "Japonais"], ["zh", "Chinois"]];
+
 function AccountItem({ a, onChange }) {
   const run = useRun();
   const toast = useToast();
@@ -114,6 +117,11 @@ function AccountItem({ a, onChange }) {
       {a.simulated && <Chip tone="warn">démo</Chip>}
       {a.status === "ok" ? <Chip tone="ok">Connecté</Chip> : <Chip tone="bad">{a.status === "expired" ? "À reconnecter" : "Erreur"}</Chip>}
       <div className="row" style={{ width: "100%", justifyContent: "flex-end", gap: 6 }}>
+        <select className="select small acc-lang" style={{ width: "auto", marginRight: "auto" }} value={a.language || ""}
+          title="Langue de publication : Claude traduit le texte commun pour ce compte" aria-label={`Langue de publication de ${a.name || a.handle}`}
+          onChange={async (e) => { if (await run(() => api.patch(`/accounts/${a.id}`, { language: e.target.value }), "Langue enregistrée")) onChange(); }}>
+          {LANGS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
         <button type="button" className="btn small" onClick={test}>Vérifier</button>
         {confirm ? <>
           <button type="button" className="btn small danger" onClick={del}>Confirmer le retrait</button>

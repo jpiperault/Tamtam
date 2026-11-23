@@ -18,7 +18,7 @@ from .common import current_user, fetchall, fetchone, get_conn, project_or_404
 router = APIRouter()
 _log = log.get("connect")
 ACCOUNT_COLS = ("id, project_id, platform, external_id, name, handle, avatar_url, expires_at, meta, simulated, "
-                "status, last_error, created_at")
+                "status, last_error, language, created_at")
 
 
 def redirect_uri(request: Request, provider: str) -> str:
@@ -225,6 +225,7 @@ async def list_accounts(project_id: int, user=Depends(current_user), conn=Depend
 
 class AccountPatch(BaseModel):
     privacy: str | None = Field(default=None, pattern="^(PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY)$")
+    language: str | None = Field(default=None, max_length=5)   # '' = langue du post
 
 
 @router.patch("/accounts/{account_id}")
@@ -237,6 +238,12 @@ async def patch_account(account_id: int, body: AccountPatch, user=Depends(curren
             raise HTTPException(422, "la visibilité ne se règle que pour TikTok")
         await conn.execute("UPDATE social_accounts SET meta = meta || %s, updated_at=now() WHERE id=%s",
                            (Jsonb({"privacy": body.privacy}), account_id))
+    if body.language is not None:
+        from ..ai import LANGUAGES
+        if body.language and body.language not in LANGUAGES:
+            raise HTTPException(422, "langue non prise en charge")
+        await conn.execute("UPDATE social_accounts SET language=%s, updated_at=now() WHERE id=%s",
+                           (body.language, account_id))
     await conn.commit()
     return await fetchone(conn, f"SELECT {ACCOUNT_COLS} FROM social_accounts WHERE id=%s", (account_id,))
 

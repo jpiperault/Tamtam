@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { useApp } from "../App.jsx";
 import { cropRatio, fmtDateTime, problems, textLength, toLocalInput, warnings, withUtm } from "../rules.js";
 import { Chip, Dialog, Icon, Loading, NETWORKS, Net, ORDER, Seg, useRun, useToast } from "../ui.jsx";
+import { LibraryDialog, TranslateBar, VisualDialog, appendSnippet } from "./ComposerTools.jsx";
 
 const byNet = (a, b) => ORDER.indexOf(a.platform) - ORDER.indexOf(b.platform);
 
@@ -284,6 +285,10 @@ export default function Composer({ editId, copyId, recycleId, date }) {
     return toLocalInput(d);
   });
   const [picker, setPicker] = useState(false);
+  const [library, setLibrary] = useState(false);
+  const [visual, setVisual] = useState(false);
+  const [languages, setLanguages] = useState([]);
+  useEffect(() => { api.get("/ai/languages").then(setLanguages).catch(() => {}); }, []);
   const [uploading, setUploading] = useState(0);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -399,6 +404,8 @@ export default function Composer({ editId, copyId, recycleId, date }) {
       if (m) setMedia((cur) => [...cur, m]);
     }
   };
+  const insertSnippet = (sn) => { editText(appendSnippet(tab === "all" ? body : textFor(tab), sn)); setLibrary(false); };
+  const applyTranslations = (texts) => setOverrides((o) => ({ ...o, ...texts }));
   const editText = (v) => {
     if (tab === "all") setBody(v);
     else setOverrides((o) => ({ ...o, [tab]: v }));
@@ -510,6 +517,11 @@ export default function Composer({ editId, copyId, recycleId, date }) {
             </div>
           </div>
 
+          <div className="row" style={{ gap: 8, marginTop: -6 }}>
+            <button type="button" id="btn-library" className="btn small" onClick={() => setLibrary(true)}><Icon name="folder" size={14} />Bibliothèque : hashtags, signatures…</button>
+          </div>
+          <TranslateBar projectId={projectId} accounts={chosen} body={body} hasLink={hasLink} languages={languages} onApply={applyTranslations} />
+
           <div className="field">
             <span className="label">Médias</span>
             <div className="media-strip"
@@ -528,6 +540,7 @@ export default function Composer({ editId, copyId, recycleId, date }) {
                 {uploading ? "Envoi…" : <span><Icon name="upload" /><br />Ajouter ou déposer</span>}
               </button>
               <button type="button" className="drop" onClick={() => setPicker(true)}><span><Icon name="image" /><br />Médiathèque</span></button>
+              <button type="button" id="btn-visual" className="drop" onClick={() => setVisual(true)}><span><Icon name="sparkle" /><br />Créer un visuel</span></button>
               <input ref={fileRef} type="file" accept="image/*,video/mp4,video/quicktime" multiple hidden
                 onChange={(e) => { upload([...e.target.files]); e.target.value = ""; }} />
             </div>
@@ -629,6 +642,9 @@ export default function Composer({ editId, copyId, recycleId, date }) {
         <MediaPicker projectId={projectId} chosen={media} onClose={() => setPicker(false)}
           onPick={(m) => setMedia((c) => (c.some((x) => x.id === m.id) ? c.filter((x) => x.id !== m.id) : [...c, m]))} />
       )}
+      {library && <LibraryDialog projectId={projectId} onInsert={insertSnippet} onClose={() => setLibrary(false)} />}
+      {visual && <VisualDialog project={project} images={media.filter((m) => m.kind === "image")} onClose={() => setVisual(false)}
+        onCreated={(m) => { setMedia((c) => [...c, m]); setVisual(false); }} />}
     </>
   );
 }

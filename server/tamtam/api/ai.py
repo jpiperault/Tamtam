@@ -141,6 +141,62 @@ async def make_campaign(body: CampaignIn, request: Request, user=Depends(current
     return {"posts": c.posts, "note": c.note, "model": c.model}
 
 
+class TranslateItem(BaseModel):
+    key: str = Field(min_length=1, max_length=40)        # identifiant du compte, côté écran de rédaction
+    platform: str
+    language: str
+    text: str = Field(min_length=1, max_length=10000)
+
+
+class TranslateIn(BaseModel):
+    project_id: int
+    items: list[TranslateItem] = Field(min_length=1, max_length=20)
+    has_link: bool = False
+
+
+@router.post("/ai/translate")
+async def make_translation(body: TranslateIn, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    """Traduit le texte de chaque compte publié dans une autre langue. Rien n'est enregistré."""
+    project = await project_or_404(conn, body.project_id)
+    items = [i.model_dump() for i in body.items]
+    for i in items:
+        if i["platform"] not in PLATFORMS or i["language"] not in ai.LANGUAGES:
+            raise HTTPException(422, "réseau ou langue non pris en charge")
+    if len({i["key"] for i in items}) != len(items):
+        raise HTTPException(422, "deux éléments ont la même clé")
+    s = await _settings(conn)
+    if not s["api_key_enc"]:
+        if not request.app.state.settings.simulation:
+            raise HTTPException(409, "Claude n'est pas configuré : un administrateur doit saisir la clé API dans "
+                                     "Administration")
+        d = ai.simulated_translate(items)
+    else:
+        if await _used_today(conn) >= s["daily_limit"]:
+            raise HTTPException(429, f"limite de {s['daily_limit']} rédactions par jour atteinte (réglable dans "
+                                     "Administration)")
+        await conn.commit()
+        try:
+            d = await ai.translate(request.app.state.vault.open(s["api_key_enc"]), s["model"], project, items,
+                                   body.has_link)
+        except ai.AIError as exc:
+            await conn.execute("INSERT INTO ai_calls(user_id, project_id, model, ok) VALUES (%s,%s,%s,false)",
+                               (user["id"], project["id"], s["model"]))
+            await conn.commit()
+            raise HTTPException(502, str(exc)) from exc
+        await conn.execute("INSERT INTO ai_calls(user_id, project_id, model, input_tokens, output_tokens) "
+                           "VALUES (%s,%s,%s,%s,%s)", (user["id"], project["id"], d.model, d.input_tokens,
+                                                         d.output_tokens))
+        await conn.commit()
+    plat = {i["key"]: i["platform"] for i in items}
+    return {"texts": d.versions, "note": d.note, "model": d.model,
+            "too_long": [k for k, t in d.versions.items() if ai.too_long(plat[k], t, body.has_link)]}
+
+
+@router.get("/ai/languages")
+async def languages(user=Depends(current_user)):
+    return [{"code": k, "label": v} for k, v in ai.LANGUAGES.items()]
+
+
 @router.get("/admin/ai")
 async def get_admin(user=Depends(admin_user), conn=Depends(get_conn)):
     s = await _settings(conn)

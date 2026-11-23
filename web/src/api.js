@@ -31,7 +31,21 @@ async function request(method, path, body, isForm = false) {
   return data;
 }
 
+// Image renvoyée par l'API (aperçu d'un visuel).
+async function blob(path, body) {
+  const res = await fetch(`/api/v1${path}`, { method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    let msg = `erreur ${res.status}`;
+    try { msg = (await res.json()).detail || msg; } catch { /* réponse sans JSON */ }
+    if (res.status === 401) window.dispatchEvent(new Event("tamtam:logout"));
+    throw new ApiError(res.status, typeof msg === "string" ? msg : "requête refusée");
+  }
+  return res.blob();
+}
+
 export const api = {
+  blob,
   get: (p) => request("GET", p),
   post: (p, b) => request("POST", p, b ?? {}),
   put: (p, b) => request("PUT", p, b),

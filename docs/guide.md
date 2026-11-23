@@ -65,6 +65,52 @@ Un post publié peut resservir. Le bouton **Recycler** (dans Publications sur un
 demande à Claude une **nouvelle version** du texte : même message, autre accroche, pour ne pas paraître répété.
 Vous relisez, ajustez, puis publiez ou programmez comme d'habitude. Les réglages TikTok sont à choisir à nouveau.
 
+### Bibliothèque : hashtags, signatures, textes
+
+Le bouton **Bibliothèque**, sous le texte, garde ce qui revient d'un post à l'autre, pour chaque projet :
+
+- des **groupes de hashtags** (« Hashtags cuisine » : `#recette #cuisine #faitmaison`). Tapez-les avec ou sans `#`,
+  séparés par des espaces ou des virgules : Tamtam ajoute les `#` et retire les doublons ;
+- des **signatures** (« 📲 Téléchargez l'appli gratuitement, lien en bio ») ;
+- des **textes** réutilisables (présentation courte, mention d'une offre).
+
+**Insérer** ajoute l'élément à la fin du texte de l'onglet ouvert : le texte commun, ou le texte adapté d'un seul
+réseau. Les éléments se modifient ou se suppriment au même endroit.
+
+### Traduire pour un compte dans une autre langue
+
+Dans **Comptes**, chaque compte a une **langue de publication**. Par défaut, c'est « Langue du post » : le compte
+publie le texte tel que vous l'écrivez. Choisissez par exemple « Anglais » pour un compte Instagram destiné à un public
+anglophone.
+
+Dans « Nouveau post », dès qu'un compte choisi est dans une autre langue, un cadre le signale avec le bouton
+**Traduire le texte commun avec Claude**. Claude traduit le texte commun pour chacun de ces comptes, à la manière
+d'un rédacteur natif du réseau. Il garde les adresses, les @mentions, le nom de l'appli et les codes promo, et
+respecte la longueur maximale du réseau. Chaque traduction arrive dans l'onglet du compte (marqué d'un point) :
+relisez-la avant de publier. Écrivez et complétez d'abord le texte commun (bibliothèque comprise), puis traduisez.
+Une traduction compte pour une rédaction.
+
+### Créer un visuel d'annonce
+
+Dans la zone **Médias**, **Créer un visuel** fabrique une image à partir d'un modèle, sans logiciel de dessin :
+
+- **Modèles** :
+  - **Annonce** : fond à la couleur du projet, grand titre, capture d'écran qui dépasse en bas ;
+  - **Clair** : fond clair avec un bandeau de couleur ;
+  - **Citation** : un avis d'utilisateur ou une phrase forte entre guillemets, avec son auteur.
+- **Formats** :
+  - **Carré** : tous les réseaux ;
+  - **Portrait 4:5** : conseillé sur Instagram et Facebook ;
+  - **Story 9:16** : TikTok, Shorts, stories ;
+  - **Paysage 16:9** : X, LinkedIn, Bluesky.
+- **Textes** : un titre, une accroche, une petite étiquette (« Nouveau », « Version 2.1 », « −30 % ») et le bas de
+  l'image (par défaut, l'adresse du projet).
+- **Couleur** : celle du projet par défaut. La couleur du texte (blanc ou noir) est choisie pour rester lisible.
+- **Capture d'écran** : une image de la médiathèque. Ajoutez-la d'abord par « Ajouter ou déposer ».
+
+L'aperçu se met à jour à chaque changement. **Ajouter au post** enregistre le visuel en JPEG (format exigé par
+Instagram) dans la médiathèque et l'ajoute au post.
+
 ### Rédiger avec Claude
 
 Le bouton **Rédiger avec Claude**, au-dessus du texte, demande une proposition à Claude (l'IA

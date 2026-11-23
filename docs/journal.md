@@ -1,5 +1,20 @@
 # Journal
 
+## 1.10.0 — 23 novembre 2026
+
+- **Visuels d'annonce** (« Créer un visuel » dans Médias) : modèles Annonce, Clair et Citation ; formats carré,
+  portrait 4:5, story 9:16 et paysage 16:9 ; titre, accroche, étiquette, capture d'écran, couleur du projet ; aperçu
+  en direct ; enregistré en JPEG dans la médiathèque et ajouté au post. Police Inter incluse (licence SIL OFL).
+- **Traduction par Claude** : langue de publication par compte (Comptes) ; dans « Nouveau post », un bouton traduit
+  le texte commun pour chaque compte dans une autre langue, en respectant la longueur maximale du réseau.
+- **Bibliothèque du projet** : groupes de hashtags, signatures et textes réutilisables, insérés en un clic dans le
+  texte.
+
+Vérifié : tests d'API (bibliothèque, langue des comptes, traduction simulée et avec un faux Claude, rendu de chaque
+modèle dans chaque format, aperçu et enregistrement d'un visuel) ; dans le navigateur, langue d'un compte,
+traduction, insertion depuis la bibliothèque, création d'un visuel avec capture, en mode simulation.
+**Pas encore vérifié** : traduction par le vrai Claude.
+
 ## 1.9.0 — 23 novembre 2026
 
 - **Nouvelles versions** (nouvelle page) : Tamtam suit la fiche App Store ou le dépôt GitHub d'une appli (jeton

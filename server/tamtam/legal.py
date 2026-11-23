@@ -51,7 +51,7 @@ Elles ne sont ni vendues, ni utilisées à des fins publicitaires, ni partagées
   la consigne, le texte, la présentation du projet et, si l'utilisateur l'accepte, les images du post ; pour le
   bilan hebdomadaire, les textes des posts de la semaine et leurs chiffres (vues, mentions J'aime, commentaires…) ;
   pour proposer une réponse, le commentaire concerné, le nom affiché de son auteur et le post ; pour annoncer une
-  nouvelle version d'appli, ses notes de version publiques ;
+  nouvelle version d'appli, ses notes de version publiques ; pour traduire un post, son texte ;
 - **GitHub et Apple**, seulement si un utilisateur demande de suivre les nouvelles versions d'une appli : {app}
   consulte la page publique de la release ou de la fiche App Store (aucune donnée personnelle n'est envoyée ; un
   jeton GitHub facultatif, chiffré, sert à lire un dépôt privé).
@@ -141,7 +141,7 @@ shared only with:
 - **Anthropic** (Claude writing assistant), only when a user asks for a text suggestion: the instructions, the text,
   the project description and, if the user agrees, the post's images; for the weekly report, the week's post texts
   and their figures (views, likes, comments…); to suggest a reply, the comment, its author's display name and the
-  post; to announce a new app version, its public release notes;
+  post; to announce a new app version, its public release notes; to translate a post, its text;
 - **GitHub and Apple**, only if a user asks to follow an app's new versions: {app} reads the public release page or
   App Store listing (no personal data is sent; an optional, encrypted GitHub token is used to read a private
   repository).

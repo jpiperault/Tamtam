@@ -23,6 +23,8 @@ réseau ramène des visites.
   permissions de chaque compte).
 - **Nouvelles versions** : à chaque release GitHub ou mise à jour sur l'App Store, Claude prépare un brouillon
   d'annonce à partir des notes de version ; **meilleurs moments pour publier** calculés d'après vos chiffres.
+- **Visuels d'annonce** générés à partir de modèles (carré, portrait, story, paysage), **traduction** par Claude
+  pour les comptes dans une autre langue, **bibliothèque** de hashtags, signatures et textes par projet.
 - **Calendrier** de la semaine, **médiathèque**, **utilisateurs** (administrateurs et membres).
 - **Mode simulation** pour tout essayer sans application développeur.
 
@@ -37,6 +39,7 @@ FastAPI + PostgreSQL + React/Vite, un seul conteneur (même recette que Cockpit 
 server/tamtam/          API, publication en tâche de fond (worker.py), médias (media.py)
 server/tamtam/platforms connecteurs : meta.py (Facebook + Instagram), x.py, tiktok.py
 server/tamtam/migrations schéma SQL (appliqué au démarrage)
+server/tamtam/fonts     police Inter des visuels (licence SIL Open Font License, OFL.txt)
 web/src                 interface React
 ```
 

@@ -1339,3 +1339,88 @@ def test_best_times_api(client, project, accounts):
     assert 1 <= x["measured"] <= r["measured"] and x["platform"] == "x"
     r = ok(client.get(f"/api/v1/insights/best-times?project_id={project['id']}&platform=aucun"))
     assert r["measured"] == 0 and r["best"] == []
+
+
+# --- 1.10 : bibliothèque, traduction, visuels
+
+def test_library(client, project):
+    pid = project["id"]
+    h = ok(client.post(f"/api/v1/projects/{pid}/snippets", json={"kind": "hashtags", "name": "Cuisine",
+                                                                  "body": "recette, #cuisine faitmaison recette"}), 201)
+    assert h["body"] == "#recette #cuisine #faitmaison"
+    sig = ok(client.post(f"/api/v1/projects/{pid}/snippets", json={"kind": "signature", "name": "Appli",
+                                                                    "body": "📲 Téléchargez l'appli\n"}), 201)
+    assert sig["body"] == "📲 Téléchargez l'appli"
+    assert client.post(f"/api/v1/projects/{pid}/snippets", json={"kind": "hashtags", "name": "x", "body": "# ,"}).status_code == 422
+    assert client.post(f"/api/v1/projects/{pid}/snippets", json={"kind": "autre", "name": "x", "body": "y"}).status_code == 422
+    s = ok(client.put(f"/api/v1/snippets/{sig['id']}", json={"kind": "signature", "name": "Appli", "body": "Gratuit"}))
+    assert s["body"] == "Gratuit"
+    login(client, *MEMBER)
+    assert [x["kind"] for x in ok(client.get(f"/api/v1/projects/{pid}/snippets"))] == ["hashtags", "signature"]
+    login(client, *ADMIN)
+    ok(client.delete(f"/api/v1/snippets/{sig['id']}"))
+    ok(client.delete(f"/api/v1/snippets/{h['id']}"))
+    assert client.delete(f"/api/v1/snippets/{h['id']}").status_code == 404
+
+
+def test_translation(client, project, accounts, monkeypatch):
+    from tamtam import ai
+
+    x = accounts["x"]
+    assert client.patch(f"/api/v1/accounts/{x['id']}", json={"language": "xx"}).status_code == 422
+    assert ok(client.patch(f"/api/v1/accounts/{x['id']}", json={"language": "en"}))["language"] == "en"
+    assert any(a["language"] == "en" for a in ok(client.get(f"/api/v1/projects/{project['id']}/accounts")))
+    langs = ok(client.get("/api/v1/ai/languages"))
+    assert {"code": "en", "label": "anglais"} in langs
+    items = [{"key": str(x["id"]), "platform": "x", "language": "en", "text": "Le mode sombre arrive !"}]
+    r = ok(client.post("/api/v1/ai/translate", json={"project_id": project["id"], "items": items}))   # simulation
+    assert r["texts"] == {str(x["id"]): "[EN] Le mode sombre arrive !"}
+    bad = [{**items[0], "language": "xx"}]
+    assert client.post("/api/v1/ai/translate", json={"project_id": project["id"], "items": bad}).status_code == 422
+    # faux Claude : la clé renvoyée est vérifiée, la limite de X signalée
+    fake = _FakeClaude([_claude_message({"translations": [{"key": str(x["id"]), "text": "Dark mode is here! " + "a" * 300},
+                                                          {"key": "inconnue", "text": "ignorée"}], "note": ""})])
+    monkeypatch.setattr(ai, "get_client", lambda key: fake)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "sk-ant-test-123", "model": "claude-opus-5-5", "daily_limit": 100}))
+    r = ok(client.post("/api/v1/ai/translate", json={"project_id": project["id"], "items": items, "has_link": True}))
+    assert list(r["texts"]) == [str(x["id"])] and r["too_long"] == [str(x["id"])]
+    sent = fake.calls[0]
+    assert sent["system"].startswith("Tu traduis") and '"langue": "anglais"' in sent["messages"][0]["content"]
+    assert '"longueur_max": 256' in sent["messages"][0]["content"]       # 280 moins le lien (23 + espace)
+    ok(client.put("/api/v1/admin/ai", json={"api_key": "", "model": "claude-opus-5-5"}))
+    ok(client.patch(f"/api/v1/accounts/{x['id']}", json={"language": ""}))
+
+
+def test_visuals_unit(tmp_path):
+    from PIL import Image
+
+    from tamtam import visuals
+
+    shot = tmp_path / "shot.png"
+    Image.new("RGB", (1170, 2532), (240, 240, 240)).save(shot)
+    for tpl in visuals.TEMPLATES:
+        for fmt, size in visuals.FORMATS.items():
+            img = visuals.render(visuals.Spec(template=tpl, format=fmt, title="Le mode sombre arrive " * 4,
+                                              subtitle="Plus doux pour les yeux", badge="Nouveau", footer="appli.fr",
+                                              color="#F2C94C", screenshot=shot if tpl != "citation" else None))
+            assert img.size == size and img.mode == "RGB"
+    assert visuals.ink_on((242, 201, 76)) == visuals.DARK and visuals.ink_on((14, 110, 92)) == (255, 255, 255)
+    with pytest.raises(visuals.VisualError):
+        visuals.render(visuals.Spec(title=""))
+    with pytest.raises(visuals.VisualError):
+        visuals.render(visuals.Spec(title="x", color="vert"))
+
+
+def test_visuals_api(client, project):
+    pid = project["id"]
+    shot = ok(client.post(f"/api/v1/projects/{pid}/media", files={"file": ("capture.png", png_bytes(), "image/png")}), 201)
+    body = {"template": "annonce", "format": "portrait", "title": "Le mode sombre arrive", "badge": "v2", "media_id": shot["id"]}
+    r = client.post(f"/api/v1/projects/{pid}/visuals/preview", json=body)
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and r.content[:2] == b"\xff\xd8"
+    m = ok(client.post(f"/api/v1/projects/{pid}/visuals", json=body), 201)
+    assert (m["width"], m["height"]) == (1080, 1350) and m["mime"] == "image/jpeg" and m["filename"].startswith("visuel-")
+    assert client.get(m["url"]).status_code == 200
+    assert client.post(f"/api/v1/projects/{pid}/visuals/preview", json={"title": ""}).status_code == 422
+    other = ok(client.post("/api/v1/projects", json={"name": "Projet visuel"}), 201)
+    assert client.post(f"/api/v1/projects/{other['id']}/visuals", json=body).status_code == 422   # capture d'un autre projet
+    assert client.post(f"/api/v1/projects/{pid}/visuals", json={**body, "format": "cinema"}).status_code == 422

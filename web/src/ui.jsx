@@ -205,7 +205,7 @@ export function Loading({ error }) {
 }
 
 // --- Fenêtre modale (en bas de l'écran sur téléphone)
-export function Dialog({ title, onClose, children, footer }) {
+export function Dialog({ title, onClose, children, footer, wide = false }) {
   const ref = useRef();
   useEffect(() => {
     // Échap ferme seulement la fenêtre du dessus quand deux fenêtres sont ouvertes l'une sur l'autre.
@@ -221,7 +221,7 @@ export function Dialog({ title, onClose, children, footer }) {
   }, [onClose]);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-label={title} ref={ref}>
+      <section className={`dialog${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
         <div className="dialog-head">
           <h2>{title}</h2>
           <button type="button" className="btn icon ghost dialog-close" onClick={onClose} aria-label="Fermer">
